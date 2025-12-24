@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RedPen - LaTeX Reviewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #fafafa;
+      color: #111;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 80px 24px;
+    }
+
+    h1 {
+      font-size: 48px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+
+    .tagline {
+      font-size: 20px;
+      color: #666;
+      margin-bottom: 48px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      margin-bottom: 64px;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      background: #111;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .step-content h2 {
+      font-size: 18px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .step-content p {
+      color: #666;
+      font-size: 15px;
+    }
+
+    .step-content a {
+      color: #111;
+      font-weight: 500;
+    }
+
+    code {
+      background: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 14px;
+    }
+
+    .code-block {
+      background: #111;
+      color: #e5e5e5;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 12px;
+      overflow-x: auto;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: #333;
+      border: none;
+      color: #999;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    .copy-btn:hover { background: #444; color: #fff; }
+
+    .trigger {
+      background: #111;
+      color: #fff;
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+
+    .btn {
+      display: inline-block;
+      background: #111;
+      color: #fff !important;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      margin-top: 8px;
+    }
+
+    .btn:hover { background: #333; color: #fff !important; }
+
+    footer {
+      border-top: 1px solid #eee;
+      padding-top: 24px;
+      color: #999;
+      font-size: 14px;
+    }
+
+    footer a { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RedPen</h1>
+    <p class="tagline">AI-powered LaTeX reviews via GitHub comments.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">0</div>
+        <div class="step-content">
+          <h2>Create a GitHub repository for your paper</h2>
+          <p>Create a private GitHub repository for writing your research paper. Consider using this template:</p>
+          <a href="https://github.com/kaist-comet/research-paper-template" class="btn">Use Template</a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h2>Add the workflow</h2>
+          <p>If you used the template above, skip this step; it already includes this workflow.</p>
+          <p>Otherwise, create <code>.github/workflows/redpen-review.yml</code> in your repository:</p>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode()">Copy</button>
+<pre id="code">name: RedPen LaTeX Review
+
+on:
+  repository_dispatch:
+    types: [redpen-review]
+  workflow_dispatch:
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.commit_sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install --upgrade pip
+
+      - env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
+        run: |
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
+          python openai_review.py</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h2>Add your OpenAI key</h2>
+          <p>Go to Settings → Secrets → Actions and add <code>OPENAI_API_KEY</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h2>Install the GitHub App</h2>
+          <p>Add RedPen to your repository.</p>
+          <a href="https://github.com/apps/redpenapp" class="btn">Install on GitHub</a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h2>Comment on a commit</h2>
+          <p>Trigger a review with:</p>
+          <div class="trigger">@RedPenApp review</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <a href="https://github.com/chkwon/redpen-app">GitHub</a>
+    </footer>
+  </div>
+
+  <script>
+    function copyCode() {
+      navigator.clipboard.writeText(document.getElementById('code').textContent);
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = 'Copied';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    }
+  </script>
+</body>
+</html>

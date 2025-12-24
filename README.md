@@ -1,27 +1,131 @@
-# Redpen LaTeX Reviewer
+# RedPen LaTeX Reviewer
 
-GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with OpenAI. Mention `@RedPenApp review` on a commit comment; the App dispatches a workflow that reviews all `.tex` files at that commit and comments back with JSON feedback. A pending acknowledgement is posted immediately; results follow when the workflow completes.
+GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with OpenAI. Mention `@RedPenApp review` on a commit comment; the App dispatches a workflow that reviews all `.tex` files at that commit and comments back with feedback.
 
-## How it works
-- A GitHub App listens for `commit_comment` webhooks and calls the Netlify Function (`netlify/functions/webhook.js`).
-- The function verifies the signature, checks the trigger phrase, posts a “received” comment, and fires a `repository_dispatch` event (`redpen-review`) with the commit SHA.
-- The workflow at `.github/workflows/redpen-review.yml` runs on that dispatch, fetches all `.tex` files at the commit, calls OpenAI (via `scripts/openai_review.py`), and posts the JSON reviews as a new commit comment.
+**Website:** https://redpen-app.netlify.app
+**Webhook URL:** https://redpen-app.netlify.app/.netlify/functions/webhook
 
-## Setup
-1. Push this repository to GitHub.
-2. Create and configure a lightweight GitHub App:
-   - App permissions: **Metadata: read** and **Contents: write**.
-   - Subscribe to **Commit comment** webhook.
-   - Webhook URL: `https://<your-site>.netlify.app/.netlify/functions/webhook`
-   - Webhook Secret: random string (also set as `GITHUB_WEBHOOK_SECRET` in Netlify).
-   - Install the App on the target repository.
-3. Deploy the Netlify Function (or any HTTPS endpoint) from `netlify/functions/webhook.js` and configure environment variables:
-   - `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID`, `GITHUB_PRIVATE_KEY` (PEM with `\\n` escapes), `GITHUB_WEBHOOK_SECRET`, optional `TRIGGER_PHRASE`.
-   - Install dependencies (`npm install`) so Netlify bundles `jsonwebtoken` for the function.
-4. Configure GitHub Actions secret in the repository:
-   - `OPENAI_API_KEY`: your OpenAI key (used by the workflow).
-5. Trigger a review by commenting on a commit with `@RedPenApp review`. The workflow will reply with JSON feedback per the LaTeX reviewer instructions.
+## Architecture
 
-Notes:
-- Adjust the trigger phrase by setting `TRIGGER_PHRASE` in Netlify (default: `@RedPenApp review`).
-- The workflow can also be run manually via the Actions tab (`Run workflow`); it will process all `.tex` files at the selected commit.
+```
+User comments "@RedPenApp review" on a commit
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  GitHub App (RedPenApp)                 │
+│  - Listens to commit_comment events     │
+│  - Sends webhook to Netlify             │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  Netlify Function (webhook.js)          │
+│  - Verifies webhook signature           │
+│  - Posts "received" acknowledgement     │
+│  - Dispatches repository_dispatch event │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│  GitHub Actions (redpen-review.yml)     │
+│  - Runs in the user's repository        │
+│  - Fetches .tex files at commit         │
+│  - Calls OpenAI API (repo's own key)    │
+│  - Posts review as commit comment       │
+└─────────────────────────────────────────┘
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `netlify/functions/webhook.js` | Webhook handler - verifies signature, posts ack, dispatches workflow |
+| `.github/workflows/redpen-review.yml` | GitHub Actions workflow template for users |
+| `scripts/openai_review.py` | Python script that fetches .tex files and calls OpenAI |
+| `prompts/review_prompt.md` | System prompt for the LaTeX reviewer |
+| `index.html` | Landing page at https://redpen-app.netlify.app |
+
+## Environment Variables (Netlify)
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_APP_ID` | The App ID from GitHub App settings |
+| `GITHUB_INSTALLATION_ID` | Installation ID (found in URL when viewing installed app) |
+| `GITHUB_PRIVATE_KEY` | Private key PEM (replace newlines with `\n`) |
+| `GITHUB_WEBHOOK_SECRET` | Secret string for webhook signature verification |
+| `TRIGGER_PHRASE` | Optional, default: `@RedPenApp review` |
+
+## GitHub App Configuration
+
+When creating/editing the GitHub App at https://github.com/settings/apps:
+
+**Permissions:**
+- Repository permissions → Contents: **Read and write**
+- Repository permissions → Metadata: **Read-only**
+
+**Subscribe to events:**
+- [x] Commit comment
+
+**Webhook:**
+- Webhook URL: `https://redpen-app.netlify.app/.netlify/functions/webhook`
+- Webhook secret: (same as `GITHUB_WEBHOOK_SECRET` in Netlify)
+
+## For Users: How to Use RedPenApp
+
+### Step 1: Install the GitHub App
+Go to the GitHub App page and click "Install" on your repository.
+
+### Step 2: Add the Workflow File
+Copy `.github/workflows/redpen-review.yml` to your repository:
+
+```yaml
+name: RedPen LaTeX Review
+
+on:
+  repository_dispatch:
+    types: [redpen-review]
+  workflow_dispatch:
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.commit_sha || github.sha }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip
+
+      - name: Run OpenAI LaTeX review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
+        run: |
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
+          python openai_review.py
+```
+
+### Step 3: Add Repository Secret
+Add `OPENAI_API_KEY` as a repository secret (Settings → Secrets and variables → Actions).
+
+### Step 4: Trigger a Review
+Comment `@RedPenApp review` on any commit to get a review of all `.tex` files.
+
+## Notes
+
+- Each repository uses its own `OPENAI_API_KEY` - Netlify never sees this key
+- The workflow can also be triggered manually from the Actions tab
+- Adjust the trigger phrase via `TRIGGER_PHRASE` in Netlify env vars
