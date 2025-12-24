@@ -144,18 +144,27 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
 
         lines.append(f"**{icon} Line {line_num}** ({category})")
 
-        # Quote the problematic line from source
+        # Quote context around the problematic line (2 lines before, target line, 2 lines after)
         if isinstance(line_num, int) and 1 <= line_num <= len(source_lines):
-            quoted_line = source_lines[line_num - 1].strip()
-            if quoted_line:
-                lines.append(f"> `{quoted_line}`")
+            context_start = max(0, line_num - 3)  # 2 lines before (0-indexed)
+            context_end = min(len(source_lines), line_num + 2)  # 2 lines after
+            context_lines = []
+            for i in range(context_start, context_end):
+                line_number = i + 1
+                line_text = source_lines[i].rstrip()
+                prefix = "→" if line_number == line_num else " "
+                context_lines.append(f"{prefix} {line_number:4d} │ {line_text}")
+            if context_lines:
+                lines.append("```")
+                lines.extend(context_lines)
+                lines.append("```")
 
         if issue:
-            lines.append(f"- **Issue:** {issue}")
+            lines.append(f"**Issue:** {issue}")
         if suggestion:
-            lines.append(f"- **Suggestion:** {suggestion}")
+            lines.append(f"**Suggestion:** {suggestion}")
         if explanation:
-            lines.append(f"- {explanation}")
+            lines.append(f"*{explanation}*")
         lines.append("")
 
     return "\n".join(lines)
