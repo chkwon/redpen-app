@@ -138,21 +138,32 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
         severity = comment.get("severity", "suggestion")
         icon = severity_icons.get(severity, "🔵")
         category = comment.get("category", "")
+        original = comment.get("original", "")
         issue = comment.get("issue", "")
         suggestion = comment.get("suggestion", "")
         explanation = comment.get("explanation", "")
 
-        lines.append(f"**{icon} Line {line_num}** ({category})")
+        # Try to find the correct line using the original text if provided
+        actual_line_num = line_num
+        if original and source_lines and isinstance(line_num, int):
+            # Search for the original text in source lines
+            original_stripped = original.strip()
+            for i, src_line in enumerate(source_lines):
+                if original_stripped in src_line or src_line.strip() == original_stripped:
+                    actual_line_num = i + 1
+                    break
+
+        lines.append(f"**{icon} Line {actual_line_num}** ({category})")
 
         # Quote context around the problematic line (2 lines before, target line, 2 lines after)
-        if isinstance(line_num, int) and 1 <= line_num <= len(source_lines):
-            context_start = max(0, line_num - 3)  # 2 lines before (0-indexed)
-            context_end = min(len(source_lines), line_num + 2)  # 2 lines after
+        if isinstance(actual_line_num, int) and 1 <= actual_line_num <= len(source_lines):
+            context_start = max(0, actual_line_num - 3)  # 2 lines before (0-indexed)
+            context_end = min(len(source_lines), actual_line_num + 2)  # 2 lines after
             context_lines = []
             for i in range(context_start, context_end):
                 line_number = i + 1
                 line_text = source_lines[i].rstrip()
-                prefix = "→" if line_number == line_num else " "
+                prefix = "→" if line_number == actual_line_num else " "
                 context_lines.append(f"{prefix} {line_number:4d} │ {line_text}")
             if context_lines:
                 lines.append("```")

@@ -172,6 +172,7 @@ Return a JSON object:
       "line": 42,
       "severity": "error|warning|suggestion",
       "category": "grammar|spelling|latex|style",
+      "original": "The exact text from the source that has the issue",
       "issue": "Brief description of the problem",
       "suggestion": "Concrete fix with corrected text",
       "explanation": "Why this matters"
@@ -179,6 +180,8 @@ Return a JSON object:
   ]
 }
 ```
+
+**CRITICAL**: The `line` number must be accurate. Count lines carefully from the beginning of the file (line 1 is the first line). The `original` field must contain the EXACT text from that line - copy it character-for-character from the source.
 
 ### Severity Guidelines
 - **error**: Grammar mistakes, spelling errors, broken LaTeX
