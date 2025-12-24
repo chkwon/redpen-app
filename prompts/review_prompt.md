@@ -184,7 +184,10 @@ Return a JSON object:
 **CRITICAL**:
 - The `line` number must be accurate. Count lines carefully from the beginning of the file (line 1 is the first line).
 - The `original` field must contain the EXACT text from that line - copy it character-for-character from the source.
-- Format `issue`, `suggestion`, and `explanation` as markdown. Wrap all LaTeX commands (like `\\`, `\begin{}`, `\ref{}`, `\emph{}`) in backticks so they render properly.
+- Format `issue`, `suggestion`, and `explanation` as markdown:
+  - Wrap LaTeX commands in backticks: `\emph{}`, `\ref{}`, `\\`
+  - For TeX quote characters, write them as words or use code blocks: write "opening TeX quotes" or use a code block like ``` ``quoted text'' ```
+  - Never use bare backtick characters (`) outside of code formatting, as they break markdown
 
 ### Severity Guidelines
 - **error**: Grammar mistakes, spelling errors, broken LaTeX
