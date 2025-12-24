@@ -518,13 +518,19 @@
           <div class="step-number">5</div>
           <div class="step-content">
             <h3>Request a review</h3>
-            <p>Comment on any commit to trigger an AI review of your paper:</p>
+            <p>Comment on any commit to trigger an AI review. By default, only changed lines are reviewed:</p>
             <div class="trigger">
               <span class="trigger-at">@RedPenApp</span> review
             </div>
+            <p style="margin-top: 16px;">Review the entire file (not just changes):</p>
+            <div class="trigger">
+              <span class="trigger-at">@RedPenApp</span> review full
+            </div>
+            <p style="margin-top: 8px; font-size: 13px; color: #666;"><em>Note: Full reviews may take longer for large files.</em></p>
             <p style="margin-top: 16px;">Get feedback in your language by adding a language code:</p>
             <div class="language-options">
               <div class="trigger"><span class="trigger-at">@RedPenApp</span> review ko <span class="flag">🇰🇷</span></div>
+              <div class="trigger"><span class="trigger-at">@RedPenApp</span> review full ko <span class="flag">🇰🇷</span></div>
               <div class="trigger"><span class="trigger-at">@RedPenApp</span> review zh <span class="flag">🇨🇳</span></div>
               <div class="trigger"><span class="trigger-at">@RedPenApp</span> review ja <span class="flag">🇯🇵</span></div>
               <div class="trigger"><span class="trigger-at">@RedPenApp</span> review vi <span class="flag">🇻🇳</span></div>

@@ -134,6 +134,95 @@ def list_tex_files(repo: str, ref: str, token: str) -> List[str]:
     ]
 
 
+def fetch_commit_diff(repo: str, sha: str, token: str) -> Dict[str, List[tuple[int, int]]]:
+    """Fetch the diff for a commit and return changed line ranges per file.
+
+    Returns dict mapping file paths to list of (start_line, end_line) tuples for changed regions.
+    """
+    url = f"https://api.github.com/repos/{repo}/commits/{sha}"
+    data = gh_request(url, token)
+
+    changed_files: Dict[str, List[tuple[int, int]]] = {}
+
+    for file_info in data.get("files", []):
+        filename = file_info.get("filename", "")
+        if not filename.lower().endswith(".tex"):
+            continue
+
+        # Parse the patch to extract changed line numbers
+        patch = file_info.get("patch", "")
+        if not patch:
+            # File was added/deleted without patch info - mark entire file
+            changed_files[filename] = [(1, 999999)]
+            continue
+
+        line_ranges = parse_diff_hunks(patch)
+        if line_ranges:
+            changed_files[filename] = line_ranges
+
+    return changed_files
+
+
+def parse_diff_hunks(patch: str) -> List[tuple[int, int]]:
+    """Parse unified diff patch and extract changed line ranges in the new file.
+
+    Returns list of (start_line, end_line) tuples.
+    """
+    import re
+
+    ranges = []
+    # Match hunk headers like @@ -10,5 +12,8 @@
+    hunk_pattern = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+    for match in hunk_pattern.finditer(patch):
+        start_line = int(match.group(1))
+        count = int(match.group(2)) if match.group(2) else 1
+        end_line = start_line + count - 1
+        ranges.append((start_line, end_line))
+
+    return ranges
+
+
+def extract_changed_regions(file_text: str, line_ranges: List[tuple[int, int]], context_lines: int = 5) -> tuple[str, List[int]]:
+    """Extract text around changed line ranges with context.
+
+    Returns (extracted_text, line_number_mapping) where line_number_mapping
+    maps extracted line index to original line number.
+    """
+    lines = file_text.split("\n")
+    total_lines = len(lines)
+
+    # Expand ranges with context and merge overlapping
+    expanded_ranges = []
+    for start, end in line_ranges:
+        exp_start = max(1, start - context_lines)
+        exp_end = min(total_lines, end + context_lines)
+        expanded_ranges.append((exp_start, exp_end))
+
+    # Sort and merge overlapping ranges
+    expanded_ranges.sort()
+    merged = []
+    for start, end in expanded_ranges:
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+
+    # Extract lines with line number prefixes
+    extracted_lines = []
+    original_line_numbers = []
+    for start, end in merged:
+        if extracted_lines:
+            extracted_lines.append("...")  # Separator between non-contiguous regions
+            original_line_numbers.append(-1)
+        for line_num in range(start, end + 1):
+            if line_num <= total_lines:
+                extracted_lines.append(f"L{line_num}: {lines[line_num - 1]}")
+                original_line_numbers.append(line_num)
+
+    return "\n".join(extracted_lines), original_line_numbers
+
+
 def add_reaction(repo: str, comment_id: int, token: str, emoji: str) -> bool:
     """Add an emoji reaction to a comment."""
     url = f"https://api.github.com/repos/{repo}/comments/{comment_id}/reactions"
@@ -178,12 +267,22 @@ def chunk_file_by_lines(file_text: str, max_chars: int) -> List[tuple[str, int]]
     return chunks
 
 
-def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str, model: str, language: str, temperature: Optional[float] = None, chunk_info: str = "") -> str:
+def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str, model: str, language: str, temperature: Optional[float] = None, chunk_info: str = "", diff_mode: bool = False) -> str:
     lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en"])
 
     chunk_note = f"\n\n**Note:** {chunk_info}" if chunk_info else ""
+
+    if diff_mode:
+        mode_note = (
+            "\n\n**DIFF MODE:** You are reviewing only the changed portions of a commit. "
+            "Each line is prefixed with its original line number (e.g., 'L42: text'). "
+            "Use these line numbers in your JSON response. Focus only on issues in the shown lines."
+        )
+    else:
+        mode_note = ""
+
     user_prompt = (
-        f"Review the LaTeX file `{file_path}` using the instructions.{chunk_note}\n\n"
+        f"Review the LaTeX file `{file_path}` using the instructions.{chunk_note}{mode_note}\n\n"
         f"**IMPORTANT**: {lang_instruction}\n\n"
         "Return valid JSON only. Use 1-based line numbers.\n\n"
         f"Content:\n{file_text}"
@@ -334,11 +433,22 @@ def main() -> int:
     if language not in LANGUAGE_FLAGS:
         language = DEFAULT_LANGUAGE
 
+    # Get review mode: "diff" (default) reviews only changed lines, "full" reviews entire files
+    review_mode = os.getenv("REVIEW_MODE") or payload.get("review_mode") or "diff"
+
     # Get comment ID for adding rocket reaction on success
     trigger_comment_id = payload.get("comment_id")
 
     prompt_text = load_prompt()
-    tex_paths = list_tex_files(repo, commit_sha, github_token)
+
+    # In diff mode, only review files that changed in this commit
+    if review_mode == "diff":
+        changed_files = fetch_commit_diff(repo, commit_sha, github_token)
+        tex_paths = [p for p in changed_files.keys()]
+    else:
+        changed_files = {}
+        tex_paths = list_tex_files(repo, commit_sha, github_token)
+
     if not tex_paths:
         post_commit_comment(
             repo,
@@ -353,9 +463,15 @@ def main() -> int:
         file_text = fetch_file(repo, path, commit_sha, github_token)
         original_text = file_text  # Keep original for quoting
 
+        # In diff mode, extract only the changed regions
+        is_diff_mode = review_mode == "diff" and path in changed_files
+        if is_diff_mode:
+            line_ranges = changed_files[path]
+            file_text, _ = extract_changed_regions(file_text, line_ranges, context_lines=5)
+
         if len(file_text) <= max_chars:
             # File fits in one chunk
-            review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature)
+            review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature, diff_mode=is_diff_mode)
         else:
             # Split into chunks and review each
             chunks = chunk_file_by_lines(file_text, max_chars)
@@ -365,7 +481,7 @@ def main() -> int:
             for chunk_idx, (chunk_text, start_line) in enumerate(chunks):
                 chunk_info = f"This is chunk {chunk_idx + 1} of {len(chunks)}, starting at line {start_line}."
                 chunk_json = call_openai(
-                    openai_key, prompt_text, path, chunk_text, model, language, temperature, chunk_info
+                    openai_key, prompt_text, path, chunk_text, model, language, temperature, chunk_info, diff_mode=is_diff_mode
                 )
 
                 # Parse and merge results
@@ -375,8 +491,8 @@ def main() -> int:
                         summary_parts.append(f"[Chunk {chunk_idx + 1}] {chunk_data['summary']}")
                     for comment in chunk_data.get("comments", []):
                         # Adjust line numbers - they're already relative to chunk start
-                        # since the LLM sees only the chunk content
-                        if isinstance(comment.get("line"), int):
+                        # since the LLM sees only the chunk content (only for non-diff mode)
+                        if not is_diff_mode and isinstance(comment.get("line"), int):
                             comment["line"] = comment["line"] + start_line - 1
                         all_comments.append(comment)
                 except json.JSONDecodeError:
@@ -401,10 +517,11 @@ def main() -> int:
     # Build the review comment
     flag = LANGUAGE_FLAGS.get(language, "🇺🇸")
     lang_name = LANGUAGE_NAMES.get(language, "English")
+    mode_label = "Changed lines" if review_mode == "diff" else "Full files"
 
     header = f"## 🖊️ RedPen Review {flag}\n\n"
     header += f"Reviewed **{len(results)}** `.tex` file(s) at commit `{commit_sha[:7]}`\n"
-    header += f"**Model:** `{model}` · **Language:** {lang_name}\n"
+    header += f"**Model:** `{model}` · **Language:** {lang_name} · **Mode:** {mode_label}\n"
 
     parts = [header]
     for path, review_json, file_content in results:
