@@ -3,176 +3,471 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RedPen - LaTeX Reviewer</title>
+  <title>RedPen - AI-Powered LaTeX Reviews</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background: #fafafa;
-      color: #111;
-      line-height: 1.6;
-      min-height: 100vh;
+    :root {
+      --bg: #fff;
+      --text: #1a1a1a;
+      --text-muted: #6b7280;
+      --accent: #dc2626;
+      --accent-light: #fef2f2;
+      --border: #e5e7eb;
+      --code-bg: #f9fafb;
+      --dark-bg: #18181b;
     }
 
-    .container {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 80px 24px;
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 100px 24px 80px;
+      background: linear-gradient(180deg, var(--accent-light) 0%, var(--bg) 100%);
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg {
+      width: 28px;
+      height: 28px;
+      fill: #fff;
+    }
+
+    .logo-text {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
 
     h1 {
-      font-size: 48px;
-      font-weight: 600;
+      font-size: clamp(36px, 5vw, 56px);
+      font-weight: 700;
       letter-spacing: -0.03em;
-      margin-bottom: 16px;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .tagline {
       font-size: 20px;
-      color: #666;
+      color: var(--text-muted);
+      max-width: 480px;
+      margin: 0 auto 40px;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      background: var(--code-bg);
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Main Content */
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Steps Section */
+    .steps-section {
+      padding: 80px 0;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .section-heading {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       margin-bottom: 48px;
+      text-align: center;
     }
 
     .steps {
       display: flex;
       flex-direction: column;
-      gap: 32px;
-      margin-bottom: 64px;
+      gap: 48px;
     }
 
     .step {
       display: flex;
-      gap: 16px;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
     }
 
-    .step-num {
-      width: 28px;
-      height: 28px;
-      background: #111;
+    .step-number {
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
       color: #fff;
-      border-radius: 50%;
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      font-weight: 500;
-      flex-shrink: 0;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
     }
 
-    .step-content h2 {
-      font-size: 18px;
-      font-weight: 500;
-      margin-bottom: 4px;
+    .step-content {
+      max-width: 560px;
+    }
+
+    .step-content h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
     }
 
     .step-content p {
-      color: #666;
-      font-size: 15px;
+      color: var(--text-muted);
+      font-size: 16px;
+      margin-bottom: 16px;
     }
 
-    .step-content a {
-      color: #111;
-      font-weight: 500;
+    .step-content p:last-child {
+      margin-bottom: 0;
     }
 
     code {
-      background: #eee;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: 'SF Mono', Consolas, monospace;
+      background: var(--code-bg);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
       font-size: 14px;
+      color: var(--accent);
+      border: 1px solid var(--border);
     }
 
+    /* Code Block */
     .code-block {
-      background: #111;
-      color: #e5e5e5;
-      padding: 20px;
+      background: var(--dark-bg);
       border-radius: 12px;
-      margin-top: 12px;
-      overflow-x: auto;
-      font-family: 'SF Mono', Consolas, monospace;
+      margin-top: 16px;
+      overflow: hidden;
+      text-align: left;
+      max-width: 100%;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .code-filename {
+      color: #a1a1aa;
       font-size: 13px;
-      line-height: 1.5;
-      position: relative;
+      font-family: 'SF Mono', Consolas, monospace;
     }
 
     .copy-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: #333;
-      border: none;
-      color: #999;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #a1a1aa;
       padding: 6px 12px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 12px;
       font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .copy-btn:hover { background: #444; color: #fff; }
-
-    .trigger {
-      background: #111;
+    .copy-btn:hover {
+      background: rgba(255,255,255,0.1);
       color: #fff;
-      display: inline-block;
-      padding: 12px 24px;
-      border-radius: 8px;
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .code-body {
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .code-body pre {
+      color: #e4e4e7;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      margin: 0;
+      white-space: pre;
+    }
+
+    /* Trigger Command */
+    .trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--dark-bg);
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 10px;
       font-family: 'SF Mono', Consolas, monospace;
-      font-size: 16px;
+      font-size: 15px;
       margin-top: 8px;
     }
 
-    .btn {
-      display: inline-block;
-      background: #111;
-      color: #fff !important;
-      padding: 12px 24px;
+    .trigger-at {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Step Action Button */
+    .step-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--dark-bg);
+      color: #fff;
+      padding: 12px 20px;
       border-radius: 8px;
       text-decoration: none;
       font-weight: 500;
-      margin-top: 8px;
+      font-size: 14px;
+      transition: all 0.2s ease;
     }
 
-    .btn:hover { background: #333; color: #fff !important; }
+    .step-btn:hover {
+      background: #27272a;
+      transform: translateY(-1px);
+    }
 
+    .step-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Footer */
     footer {
-      border-top: 1px solid #eee;
-      padding-top: 24px;
-      color: #999;
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      margin-top: 80px;
+    }
+
+    .footer-content {
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-left {
+      color: var(--text-muted);
       font-size: 14px;
     }
 
-    footer a { color: #666; }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    .footer-links svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Mobile Adjustments */
+    @media (max-width: 600px) {
+      .hero {
+        padding: 60px 20px;
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .step-number {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+        border-radius: 10px;
+      }
+
+      .cta-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn {
+        justify-content: center;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>RedPen</h1>
-    <p class="tagline">AI-powered LaTeX reviews via GitHub comments.</p>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">0</div>
-        <div class="step-content">
-          <h2>Create a GitHub repository for your paper</h2>
-          <p>Create a private GitHub repository for writing your research paper. Consider using this template:</p>
-          <a href="https://github.com/kaist-comet/research-paper-template" class="btn">Use Template</a>
-        </div>
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          <path d="M2 2l7.586 7.586"/>
+        </svg>
       </div>
+      <span class="logo-text">RedPen</span>
+    </div>
+    <h1>AI-Powered Reviews for LaTeX Papers</h1>
+    <p class="tagline">Get intelligent feedback on your research papers directly in GitHub. Just mention @RedPenApp in a commit comment.</p>
+    <div class="cta-group">
+      <a href="https://github.com/apps/redpenapp" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        Install GitHub App
+      </a>
+      <a href="https://github.com/kaist-comet/research-paper-template" class="btn btn-secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Use Paper Template
+      </a>
+    </div>
+  </header>
 
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <h2>Add the workflow</h2>
-          <p>If you used the template above, skip this step; it already includes this workflow.</p>
-          <p>Otherwise, create <code>.github/workflows/redpen-review.yml</code> in your repository:</p>
-          <div class="code-block">
-            <button class="copy-btn" onclick="copyCode()">Copy</button>
+  <!-- Setup Steps -->
+  <section class="steps-section">
+    <div class="container">
+      <p class="section-title">Setup Guide</p>
+      <h2 class="section-heading">Get started in minutes</h2>
+
+      <div class="steps">
+        <!-- Step 1 -->
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Create your paper repository</h3>
+            <p>Start with our template that includes the workflow, or create your own private GitHub repository for your research paper.</p>
+            <a href="https://github.com/kaist-comet/research-paper-template" class="step-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Use Template
+            </a>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Add the workflow file</h3>
+            <p>If you used the template, skip this step; this workflow is already included in the template. Otherwise, create <code>.github/workflows/redpen-review.yml</code> in your repo with this content:</p>
+            <div class="code-block">
+              <div class="code-header">
+                <span class="code-filename">redpen-review.yml</span>
+                <button class="copy-btn" onclick="copyCode()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy
+                </button>
+              </div>
+              <div class="code-body">
 <pre id="code">name: RedPen LaTeX Review
 
 on:
@@ -206,48 +501,70 @@ jobs:
           mkdir -p prompts
           curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
           python openai_review.py</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Add your OpenAI API key</h3>
+            <p>In your repository, go to <strong>Settings</strong> &rarr; <strong>Secrets and variables</strong> &rarr; <strong>Actions</strong> and add a new secret named <code>OPENAI_API_KEY</code>.</p>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Install the GitHub App</h3>
+            <p>Add RedPen to your repository to enable comment triggers.</p>
+            <a href="https://github.com/apps/redpenapp" class="step-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              Install on GitHub
+            </a>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <h3>Request a review</h3>
+            <p>Comment on any commit to trigger an AI review of your paper:</p>
+            <div class="trigger">
+              <span class="trigger-at">@RedPenApp</span> review
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  </section>
 
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <h2>Add your OpenAI key</h2>
-          <p>Go to Settings → Secrets → Actions and add <code>OPENAI_API_KEY</code></p>
-        </div>
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-left">
+        Built for researchers, by researchers.
       </div>
-
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <h2>Install the GitHub App</h2>
-          <p>Add RedPen to your repository.</p>
-          <a href="https://github.com/apps/redpenapp" class="btn">Install on GitHub</a>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <h2>Comment on a commit</h2>
-          <p>Trigger a review with:</p>
-          <div class="trigger">@RedPenApp review</div>
-        </div>
+      <div class="footer-links">
+        <a href="https://github.com/chkwon/redpen-app">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          View on GitHub
+        </a>
       </div>
     </div>
-
-    <footer>
-      <a href="https://github.com/chkwon/redpen-app">GitHub</a>
-    </footer>
-  </div>
+  </footer>
 
   <script>
     function copyCode() {
       navigator.clipboard.writeText(document.getElementById('code').textContent);
       const btn = document.querySelector('.copy-btn');
-      btn.textContent = 'Copied';
-      setTimeout(() => btn.textContent = 'Copy', 2000);
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => btn.innerHTML = originalHTML, 2000);
     }
   </script>
 </body>
