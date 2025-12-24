@@ -1,0 +1,20 @@
+name: Redpen Commit Check
+
+on:
+  commit_comment:
+    types: [created]
+
+jobs:
+  respond-with-timestamp:
+    if: contains(github.event.comment.body, '@redpen check')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run timestamp responder
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/timestamp_comment.py
