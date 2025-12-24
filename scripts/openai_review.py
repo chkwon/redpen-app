@@ -144,11 +144,46 @@ def add_reaction(repo: str, comment_id: int, token: str, emoji: str) -> bool:
         return False
 
 
-def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str, model: str, language: str, temperature: Optional[float] = None) -> str:
+def chunk_file_by_lines(file_text: str, max_chars: int) -> List[tuple[str, int]]:
+    """Split file into chunks that respect line boundaries.
+
+    Returns list of (chunk_text, start_line_number) tuples.
+    """
+    lines = file_text.split("\n")
+    chunks = []
+    current_chunk_lines = []
+    current_chunk_size = 0
+    chunk_start_line = 1
+
+    for i, line in enumerate(lines):
+        line_with_newline = line + "\n"
+        line_size = len(line_with_newline)
+
+        # If adding this line would exceed max_chars, start a new chunk
+        if current_chunk_size + line_size > max_chars and current_chunk_lines:
+            chunk_text = "\n".join(current_chunk_lines)
+            chunks.append((chunk_text, chunk_start_line))
+            current_chunk_lines = []
+            current_chunk_size = 0
+            chunk_start_line = i + 1  # 1-based line number
+
+        current_chunk_lines.append(line)
+        current_chunk_size += line_size
+
+    # Don't forget the last chunk
+    if current_chunk_lines:
+        chunk_text = "\n".join(current_chunk_lines)
+        chunks.append((chunk_text, chunk_start_line))
+
+    return chunks
+
+
+def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str, model: str, language: str, temperature: Optional[float] = None, chunk_info: str = "") -> str:
     lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en"])
 
+    chunk_note = f"\n\n**Note:** {chunk_info}" if chunk_info else ""
     user_prompt = (
-        f"Review the LaTeX file `{file_path}` using the instructions.\n\n"
+        f"Review the LaTeX file `{file_path}` using the instructions.{chunk_note}\n\n"
         f"**IMPORTANT**: {lang_instruction}\n\n"
         "Return valid JSON only. Use 1-based line numbers.\n\n"
         f"Content:\n{file_text}"
@@ -317,9 +352,50 @@ def main() -> int:
     for path in tex_paths:
         file_text = fetch_file(repo, path, commit_sha, github_token)
         original_text = file_text  # Keep original for quoting
-        if len(file_text) > max_chars:
-            file_text = file_text[:max_chars]
-        review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature)
+
+        if len(file_text) <= max_chars:
+            # File fits in one chunk
+            review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature)
+        else:
+            # Split into chunks and review each
+            chunks = chunk_file_by_lines(file_text, max_chars)
+            all_comments = []
+            summary_parts = []
+
+            for chunk_idx, (chunk_text, start_line) in enumerate(chunks):
+                chunk_info = f"This is chunk {chunk_idx + 1} of {len(chunks)}, starting at line {start_line}."
+                chunk_json = call_openai(
+                    openai_key, prompt_text, path, chunk_text, model, language, temperature, chunk_info
+                )
+
+                # Parse and merge results
+                try:
+                    chunk_data = json.loads(chunk_json)
+                    if chunk_data.get("summary"):
+                        summary_parts.append(f"[Chunk {chunk_idx + 1}] {chunk_data['summary']}")
+                    for comment in chunk_data.get("comments", []):
+                        # Adjust line numbers - they're already relative to chunk start
+                        # since the LLM sees only the chunk content
+                        if isinstance(comment.get("line"), int):
+                            comment["line"] = comment["line"] + start_line - 1
+                        all_comments.append(comment)
+                except json.JSONDecodeError:
+                    # If parsing fails, include raw response as a comment
+                    all_comments.append({
+                        "line": start_line,
+                        "severity": "warning",
+                        "category": "system",
+                        "issue": f"Chunk {chunk_idx + 1} review parse error",
+                        "suggestion": chunk_json[:500],
+                    })
+
+            # Combine into single JSON result
+            merged = {
+                "summary": " ".join(summary_parts) if summary_parts else "Review completed in multiple chunks.",
+                "comments": all_comments,
+            }
+            review_json = json.dumps(merged)
+
         results.append((path, review_json, original_text))
 
     # Build the review comment
