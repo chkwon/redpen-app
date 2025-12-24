@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -174,16 +175,27 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
                 lines.extend(context_lines)
                 lines.append("```")
 
-        # Escape backslashes for proper markdown rendering
-        def escape_backslashes(text: str) -> str:
-            return text.replace("\\", "\\\\") if text else text
+        # Format LaTeX commands in backticks for readability
+        def format_latex_in_text(text: str) -> str:
+            if not text:
+                return text
+            # Match LaTeX commands like \command, \command{}, \\, etc.
+            # Wrap them in backticks if not already wrapped
+            result = re.sub(
+                r'(?<!`)(\\.+?)(?![`\w])',
+                r'`\1`',
+                text
+            )
+            # Clean up double backticks that might occur
+            result = re.sub(r'``+', '`', result)
+            return result
 
         if issue:
-            lines.append(f"**Issue:** {escape_backslashes(issue)}")
+            lines.append(f"**Issue:** {format_latex_in_text(issue)}")
         if suggestion:
-            lines.append(f"**Suggestion:** {escape_backslashes(suggestion)}")
+            lines.append(f"**Suggestion:** {format_latex_in_text(suggestion)}")
         if explanation:
-            lines.append(f"*{escape_backslashes(explanation)}*")
+            lines.append(f"*{format_latex_in_text(explanation)}*")
         lines.append("")
 
     return "\n".join(lines)
