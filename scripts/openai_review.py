@@ -174,12 +174,16 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
                 lines.extend(context_lines)
                 lines.append("```")
 
+        # Escape backslashes for proper markdown rendering
+        def escape_backslashes(text: str) -> str:
+            return text.replace("\\", "\\\\") if text else text
+
         if issue:
-            lines.append(f"**Issue:** {issue}")
+            lines.append(f"**Issue:** {escape_backslashes(issue)}")
         if suggestion:
-            lines.append(f"**Suggestion:** {suggestion}")
+            lines.append(f"**Suggestion:** {escape_backslashes(suggestion)}")
         if explanation:
-            lines.append(f"*{explanation}*")
+            lines.append(f"*{escape_backslashes(explanation)}*")
         lines.append("")
 
     return "\n".join(lines)
