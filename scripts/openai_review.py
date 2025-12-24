@@ -70,17 +70,21 @@ def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str
         f"Content:\n{file_text}"
     )
 
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "messages": [
-                {"role": "system", "content": system_prompt.strip()},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-    ).encode("utf-8")
+    request_body = {
+        "model": MODEL,
+        "messages": [
+            {"role": "system", "content": system_prompt.strip()},
+            {"role": "user", "content": user_prompt},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+
+    # Only add temperature if not using a model that doesn't support it
+    temperature = os.getenv("OPENAI_TEMPERATURE")
+    if temperature is not None:
+        request_body["temperature"] = float(temperature)
+
+    body = json.dumps(request_body).encode("utf-8")
 
     request = urllib.request.Request(
         API_URL,
