@@ -1,6 +1,8 @@
 [build]
+  command = "bash build.sh"
   publish = "."
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html netlify/"
+  # Only build when these files change (includes files injected by build.sh)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- index.html netlify/ build.sh .github/workflows/redpen-review.yml config.yml"
 
 [functions]
   directory = "netlify/functions"
