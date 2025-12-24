@@ -1,0 +1,8 @@
+{
+  "name": "redpen-app",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}

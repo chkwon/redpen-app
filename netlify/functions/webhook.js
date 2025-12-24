@@ -1,10 +1,11 @@
-import crypto from "crypto";
-import fetch from "node-fetch"; // Netlify bundles node-fetch v2
+const crypto = require("crypto");
+const jsonwebtoken = require("jsonwebtoken"); // bundled via Netlify Node runtime
 
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_INSTALLATION_ID = process.env.GITHUB_INSTALLATION_ID;
 const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escaped
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
+const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@RedPenApp check").toLowerCase();
 
 // Verify webhook signature
 function verify(body, signature) {
@@ -17,7 +18,7 @@ function verify(body, signature) {
 function appJwt() {
   const now = Math.floor(Date.now() / 1000);
   const payload = { iat: now - 60, exp: now + 600, iss: GITHUB_APP_ID };
-  const token = require("jsonwebtoken").sign(payload, GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"), {
+  const token = jsonwebtoken.sign(payload, GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"), {
     algorithm: "RS256",
   });
   return token;
@@ -41,7 +42,7 @@ async function installationToken() {
   return json.token;
 }
 
-export const handler = async (event) => {
+module.exports.handler = async (event) => {
   const sig = event.headers["x-hub-signature-256"];
   if (!verify(event.body, sig)) return { statusCode: 401, body: "bad signature" };
 
@@ -53,27 +54,37 @@ export const handler = async (event) => {
   const commit_sha = payload.comment.commit_id;
   const comment_body = payload.comment.body;
   const comment_author = payload.comment.user?.login;
+  if (!commit_sha) return { statusCode: 200, body: "ignored: no commit" };
+
+  // Avoid loops on bot-authored comments.
+  if (comment_author && comment_author.endsWith("[bot]")) {
+    return { statusCode: 200, body: "ignored: bot comment" };
+  }
+
+  if (!comment_body.toLowerCase().includes(TRIGGER_PHRASE)) {
+    return { statusCode: 200, body: "ignored: trigger not found" };
+  }
 
   const token = await installationToken();
 
-  const dispatchRes = await fetch(
-    `https://api.github.com/repos/${payload.repository.full_name}/dispatches`,
+  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const reply = `👋 Thanks for the ping!\\n\\nCurrent UTC date & time: **${timestamp}**.`;
+
+  const res = await fetch(
+    `https://api.github.com/repos/${payload.repository.full_name}/commits/${commit_sha}/comments`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-      body: JSON.stringify({
-        event_type: "redpen-commit-comment",
-        client_payload: { commit_sha, comment_body, comment_author },
-      }),
+      body: JSON.stringify({ body: reply }),
     }
   );
 
-  if (!dispatchRes.ok) {
-    const text = await dispatchRes.text();
-    return { statusCode: 500, body: `dispatch failed ${dispatchRes.status}: ${text}` };
+  if (!res.ok) {
+    const text = await res.text();
+    return { statusCode: 500, body: `comment failed ${res.status}: ${text}` };
   }
-  return { statusCode: 200, body: "ok" };
+  return { statusCode: 200, body: "comment posted" };
 };
