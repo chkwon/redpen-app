@@ -1,8 +1,6 @@
 name: Redpen Commit Check
 
-on:
-  commit_comment:
-    types: [created]
+on: [commit_comment]
 
 jobs:
   respond-with-timestamp:
