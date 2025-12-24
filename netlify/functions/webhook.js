@@ -74,26 +74,41 @@ module.exports.handler = async (event) => {
     return { statusCode: 200, body: "ignored: trigger not found" };
   }
 
+  // Expect a LaTeX file path after the word "review"
+  const pathMatch = comment_body.match(/review\\s+([^\\s]+\\.tex)/i);
+  if (!pathMatch) {
+    return {
+      statusCode: 200,
+      body: "ignored: no tex path; use '@RedPenApp check review path/to/file.tex'",
+    };
+  }
+  const targetFile = pathMatch[1];
+
   const token = await installationToken();
 
-  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-  const reply = `👋 Thanks for the ping!\\n\\nCurrent UTC date & time: **${timestamp}**.`;
-
   const res = await fetch(
-    `https://api.github.com/repos/${payload.repository.full_name}/commits/${commit_sha}/comments`,
+    `https://api.github.com/repos/${payload.repository.full_name}/dispatches`,
     {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
       },
-      body: JSON.stringify({ body: reply }),
+      body: JSON.stringify({
+        event_type: "redpen-review",
+        client_payload: {
+          commit_sha,
+          comment_body,
+          comment_author,
+          target_file: targetFile,
+        },
+      }),
     }
   );
 
   if (!res.ok) {
     const text = await res.text();
-    return { statusCode: 500, body: `comment failed ${res.status}: ${text}` };
+    return { statusCode: 500, body: `dispatch failed ${res.status}: ${text}` };
   }
-  return { statusCode: 200, body: "comment posted" };
+  return { statusCode: 200, body: "review dispatched" };
 };

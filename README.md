@@ -1,23 +1,27 @@
-# Redpen Commit Timestamp App
+# Redpen LaTeX Reviewer
 
-Minimal GitHub App behavior implemented via a Netlify Function: mention `@RedPenApp check` on any commit comment and the App replies with the current UTC date and time.
+GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with OpenAI. Mention `@RedPenApp check review path/to/file.tex` on a commit comment; the App dispatches a workflow that runs the OpenAI review and comments back with JSON feedback.
 
 ## How it works
-- A GitHub App listens for `commit_comment` webhooks and calls a Netlify Function (`netlify/functions/webhook.js`).
-- The function verifies the webhook signature, checks for the trigger phrase, and posts a new commit comment with the timestamp using the installation token.
+- A GitHub App listens for `commit_comment` webhooks and calls the Netlify Function (`netlify/functions/webhook.js`).
+- The function verifies the signature, checks the trigger phrase, extracts the requested LaTeX path, and fires a `repository_dispatch` event (`redpen-review`) with the commit SHA and file path.
+- The workflow at `.github/workflows/redpen-review.yml` runs on that dispatch, fetches the file at the commit, calls OpenAI (via `scripts/openai_review.py`), and posts the JSON review as a new commit comment.
 
 ## Setup
 1. Push this repository to GitHub.
-2. Create a lightweight GitHub App:
+2. Create and configure a lightweight GitHub App:
    - App permissions: **Metadata: read** and **Contents: write**.
-   - Subscribe to the **Commit comment** webhook event.
-   - Set the Webhook URL to your deployed Netlify Function URL and the Webhook Secret to a random string (also set as `GITHUB_WEBHOOK_SECRET` in Netlify).
+   - Subscribe to **Commit comment** webhook.
+   - Webhook URL: `https://<your-site>.netlify.app/.netlify/functions/webhook`
+   - Webhook Secret: random string (also set as `GITHUB_WEBHOOK_SECRET` in Netlify).
    - Install the App on the target repository.
 3. Deploy the Netlify Function (or any HTTPS endpoint) from `netlify/functions/webhook.js` and configure environment variables:
    - `GITHUB_APP_ID`, `GITHUB_INSTALLATION_ID`, `GITHUB_PRIVATE_KEY` (PEM with `\\n` escapes), `GITHUB_WEBHOOK_SECRET`, optional `TRIGGER_PHRASE`.
    - Install dependencies (`npm install`) so Netlify bundles `jsonwebtoken` for the function.
-4. Comment on any commit with `@RedPenApp check`; the App will reply with the current UTC timestamp.
+4. Configure GitHub Actions secret in the repository:
+   - `OPENAI_API_KEY`: your OpenAI key (used by the workflow).
+5. Trigger a review by commenting on a commit with `@RedPenApp check review path/to/file.tex`. The workflow will reply with JSON feedback per the LaTeX reviewer instructions.
 
 Notes:
-- The GitHub Actions workflow path was removed for simplicity; everything runs inside the Netlify Function via the App installation token.
-- Adjust the trigger phrase by setting `TRIGGER_PHRASE` in the Netlify environment (default: `@RedPenApp check`).
+- Adjust the trigger phrase by setting `TRIGGER_PHRASE` in Netlify (default: `@RedPenApp check`).
+- The workflow can also be run manually via the Actions tab (`Run workflow`) by providing `target_file`.
