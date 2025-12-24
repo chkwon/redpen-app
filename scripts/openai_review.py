@@ -106,6 +106,51 @@ def post_commit_comment(repo: str, sha: str, token: str, body: str) -> None:
     gh_request(url, token, data={"body": body}, method="POST")
 
 
+def format_review_as_markdown(file_path: str, review_json: str) -> str:
+    """Convert JSON review output to readable markdown."""
+    try:
+        data = json.loads(review_json)
+    except json.JSONDecodeError:
+        return f"**{file_path}**\n\n```\n{review_json}\n```"
+
+    lines = [f"### {file_path}"]
+
+    summary = data.get("summary", "")
+    if summary:
+        lines.append(f"\n{summary}\n")
+
+    comments = data.get("comments", [])
+    if not comments:
+        lines.append("\nNo issues found.")
+        return "\n".join(lines)
+
+    severity_icons = {
+        "error": "🔴",
+        "warning": "🟡",
+        "suggestion": "🔵",
+    }
+
+    for comment in comments:
+        line_num = comment.get("line", "?")
+        severity = comment.get("severity", "suggestion")
+        icon = severity_icons.get(severity, "🔵")
+        category = comment.get("category", "")
+        issue = comment.get("issue", "")
+        suggestion = comment.get("suggestion", "")
+        explanation = comment.get("explanation", "")
+
+        lines.append(f"**{icon} Line {line_num}** ({category})")
+        if issue:
+            lines.append(f"- **Issue:** {issue}")
+        if suggestion:
+            lines.append(f"- **Suggestion:** {suggestion}")
+        if explanation:
+            lines.append(f"- {explanation}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def load_prompt() -> str:
     if not PROMPT_PATH.exists():
         raise RuntimeError(f"Review prompt not found at {PROMPT_PATH}")
@@ -145,12 +190,10 @@ def main() -> int:
         review_json = call_openai(openai_key, prompt_text, path, file_text)
         results.append((path, review_json))
 
-    parts = [
-        f"OpenAI review results for commit `{commit_sha}` (processed {len(results)} .tex files):"
-    ]
-    for path, content in results:
-        parts.append(f"\nFile `{path}`:\n```json\n{content}\n```")
-    comment_body = "\n".join(parts)
+    parts = [f"## RedPen Review\n\nReviewed {len(results)} `.tex` file(s) at commit `{commit_sha[:7]}`.\n"]
+    for path, review_json in results:
+        parts.append(format_review_as_markdown(path, review_json))
+    comment_body = "\n---\n".join(parts)
     post_commit_comment(repo, commit_sha, github_token, comment_body)
     return 0
 
