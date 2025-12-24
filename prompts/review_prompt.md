@@ -109,12 +109,12 @@ $\textsf{counter}_1 = 3$
 - Use `\toprule`, `\midrule`, `\bottomrule` from booktabs
 - Align text LEFT, numbers RIGHT
 - Do NOT center text columns
-- Avoid [h] or [H]. Let them float.
+- Avoid [h] or [H]. Let them float. I prefer to use `begin{table}` without any placement options.
 
 ### Figures
 - Caption goes BELOW the figure
 - Prefer vector-based PDF over JPG/PNG
-- Avoid [h] or [H]. Let them float.
+- Avoid [h] or [H]. Let them float. I prefer to use `begin{figure}` without any placement options.
 
 ## Priority 3: Academic Style
 
