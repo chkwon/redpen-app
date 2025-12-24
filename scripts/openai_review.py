@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 
 
 API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 PROMPT_PATH = Path(os.getenv("REVIEW_PROMPT_PATH", "prompts/review_prompt.md"))
 
 
