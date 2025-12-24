@@ -7,6 +7,13 @@ const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escap
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
 const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@RedPenApp check").toLowerCase();
 
+function requireEnv(name, value) {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 // Verify webhook signature
 function verify(body, signature) {
   const hmac = crypto.createHmac("sha256", GITHUB_WEBHOOK_SECRET);
@@ -16,9 +23,11 @@ function verify(body, signature) {
 
 // Create JWT for the App
 function appJwt() {
+  requireEnv("GITHUB_APP_ID", GITHUB_APP_ID);
   const now = Math.floor(Date.now() / 1000);
   const payload = { iat: now - 60, exp: now + 600, iss: GITHUB_APP_ID };
-  const token = jsonwebtoken.sign(payload, GITHUB_PRIVATE_KEY.replace(/\\n/g, "\n"), {
+  const key = requireEnv("GITHUB_PRIVATE_KEY", GITHUB_PRIVATE_KEY).replace(/\\n/g, "\n");
+  const token = jsonwebtoken.sign(payload, key, {
     algorithm: "RS256",
   });
   return token;
