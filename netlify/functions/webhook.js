@@ -86,7 +86,7 @@ module.exports.handler = async (event) => {
         Accept: "application/vnd.github+json",
       },
       body: JSON.stringify({
-        body: "👋 Review request received. Processing all .tex files now…",
+        body: "👋 Review request received. Processing all .tex files now... Check the Actions tab for the progress.",
       }),
     }
   );
