@@ -1,10 +1,12 @@
 name: Redpen Commit Check
 
-on: [commit_comment]
+on:
+  repository_dispatch:
+    types: [redpen-commit-comment]
+  workflow_dispatch:
 
 jobs:
   respond-with-timestamp:
-    if: contains(github.event.comment.body, '@redpen check')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,4 +17,5 @@ jobs:
       - name: Run timestamp responder
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRIGGER_PHRASE: "@redpen check"
         run: python scripts/timestamp_comment.py

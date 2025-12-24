@@ -35,15 +35,29 @@ def main() -> int:
     repo = os.getenv("GITHUB_REPOSITORY")
     token = os.getenv("GITHUB_TOKEN")
     trigger = os.getenv("TRIGGER_PHRASE", "@redpen check").lower()
+    event_name = os.getenv("GITHUB_EVENT_NAME", "")
 
     if not all([event_path, repo, token]):
         print("Missing required GitHub Action environment variables", file=sys.stderr)
         return 1
 
     payload = _load_event_payload(event_path)
-    comment = payload.get("comment") or {}
-    comment_body = (comment.get("body") or "").lower()
-    comment_author = (comment.get("user") or {}).get("login", "")
+    client_payload: Dict[str, Any] = payload.get("client_payload") or {}
+
+    if event_name == "repository_dispatch":
+        comment_body = (client_payload.get("comment_body") or "").lower()
+        comment_author = client_payload.get("comment_author", "")
+        commit_sha = client_payload.get("commit_sha")
+    else:
+        comment = payload.get("comment") or {}
+        comment_body = (comment.get("body") or "").lower()
+        comment_author = (comment.get("user") or {}).get("login", "")
+        commit_sha = (
+            comment.get("commit_id")
+            or (payload.get("pull_request") or {}).get("head", {}).get("sha")
+            or payload.get("after")
+            or os.getenv("GITHUB_SHA")
+        )
 
     # Skip comments authored by the automation to avoid infinite loops.
     if comment_author == "github-actions[bot]":
@@ -54,7 +68,6 @@ def main() -> int:
         print("No trigger phrase detected; exiting")
         return 0
 
-    commit_sha = comment.get("commit_id") or payload.get("after") or os.getenv("GITHUB_SHA")
     if not commit_sha:
         print("Unable to determine commit SHA for the comment", file=sys.stderr)
         return 1
