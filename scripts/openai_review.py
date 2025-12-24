@@ -106,12 +106,15 @@ def post_commit_comment(repo: str, sha: str, token: str, body: str) -> None:
     gh_request(url, token, data={"body": body}, method="POST")
 
 
-def format_review_as_markdown(file_path: str, review_json: str) -> str:
+def format_review_as_markdown(file_path: str, review_json: str, file_content: str = "") -> str:
     """Convert JSON review output to readable markdown."""
     try:
         data = json.loads(review_json)
     except json.JSONDecodeError:
         return f"**{file_path}**\n\n```\n{review_json}\n```"
+
+    # Build line lookup for quoting source
+    source_lines = file_content.split("\n") if file_content else []
 
     lines = [f"### {file_path}"]
 
@@ -140,6 +143,13 @@ def format_review_as_markdown(file_path: str, review_json: str) -> str:
         explanation = comment.get("explanation", "")
 
         lines.append(f"**{icon} Line {line_num}** ({category})")
+
+        # Quote the problematic line from source
+        if isinstance(line_num, int) and 1 <= line_num <= len(source_lines):
+            quoted_line = source_lines[line_num - 1].strip()
+            if quoted_line:
+                lines.append(f"> `{quoted_line}`")
+
         if issue:
             lines.append(f"- **Issue:** {issue}")
         if suggestion:
@@ -185,14 +195,15 @@ def main() -> int:
     results = []
     for path in tex_paths:
         file_text = fetch_file(repo, path, commit_sha, github_token)
+        original_text = file_text  # Keep original for quoting
         if len(file_text) > max_chars:
             file_text = file_text[:max_chars]
         review_json = call_openai(openai_key, prompt_text, path, file_text)
-        results.append((path, review_json))
+        results.append((path, review_json, original_text))
 
     parts = [f"## RedPen Review\n\nReviewed {len(results)} `.tex` file(s) at commit `{commit_sha[:7]}`.\n"]
-    for path, review_json in results:
-        parts.append(format_review_as_markdown(path, review_json))
+    for path, review_json, file_content in results:
+        parts.append(format_review_as_markdown(path, review_json, file_content))
     comment_body = "\n---\n".join(parts)
     post_commit_comment(repo, commit_sha, github_token, comment_body)
     return 0
