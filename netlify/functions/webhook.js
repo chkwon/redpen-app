@@ -5,7 +5,24 @@ const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_INSTALLATION_ID = process.env.GITHUB_INSTALLATION_ID;
 const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escaped
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
-const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@RedPenApp review").toLowerCase();
+const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@redpenapp review").toLowerCase();
+
+// Language code to flag emoji mapping
+const LANGUAGE_FLAGS = {
+  en: "🇺🇸",
+  ko: "🇰🇷",
+  zh: "🇨🇳",
+  ja: "🇯🇵",
+  vi: "🇻🇳",
+};
+
+const LANGUAGE_NAMES = {
+  en: "English",
+  ko: "Korean",
+  zh: "Chinese",
+  ja: "Japanese",
+  vi: "Vietnamese",
+};
 
 function requireEnv(name, value) {
   if (!value) {
@@ -51,6 +68,39 @@ async function installationToken() {
   return json.token;
 }
 
+// Add emoji reaction to a comment
+async function addReaction(token, repoFullName, commentId, emoji) {
+  const res = await fetch(
+    `https://api.github.com/repos/${repoFullName}/comments/${commentId}/reactions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({ content: emoji }),
+    }
+  );
+  return res.ok;
+}
+
+// Parse language code from trigger comment (e.g., "@RedPenApp review ko" -> "ko")
+function parseLanguage(commentBody) {
+  const lowerBody = commentBody.toLowerCase();
+  const triggerIndex = lowerBody.indexOf(TRIGGER_PHRASE);
+  if (triggerIndex === -1) return "en";
+
+  // Get text after the trigger phrase
+  const afterTrigger = lowerBody.slice(triggerIndex + TRIGGER_PHRASE.length).trim();
+  const firstWord = afterTrigger.split(/\s+/)[0];
+
+  // Check if it's a valid language code
+  if (firstWord && LANGUAGE_FLAGS[firstWord]) {
+    return firstWord;
+  }
+  return "en";
+}
+
 module.exports.handler = async (event) => {
   const sig = event.headers["x-hub-signature-256"];
   if (!verify(event.body, sig)) return { statusCode: 401, body: "bad signature" };
@@ -63,6 +113,7 @@ module.exports.handler = async (event) => {
   const commit_sha = payload.comment.commit_id;
   const comment_body = payload.comment.body;
   const comment_author = payload.comment.user?.login;
+  const comment_id = payload.comment.id;
   if (!commit_sha) return { statusCode: 200, body: "ignored: no commit" };
 
   // Avoid loops on bot-authored comments.
@@ -76,7 +127,17 @@ module.exports.handler = async (event) => {
 
   const token = await installationToken();
 
-  // Acknowledge receipt to the commit thread.
+  // Add :eyes: reaction to acknowledge the trigger comment
+  if (comment_id) {
+    await addReaction(token, payload.repository.full_name, comment_id, "eyes");
+  }
+
+  // Parse language from the trigger comment
+  const language = parseLanguage(comment_body);
+  const flag = LANGUAGE_FLAGS[language] || "🇺🇸";
+  const langName = LANGUAGE_NAMES[language] || "English";
+
+  // Acknowledge receipt to the commit thread with language flag
   const pending = await fetch(
     `https://api.github.com/repos/${payload.repository.full_name}/commits/${commit_sha}/comments`,
     {
@@ -86,7 +147,10 @@ module.exports.handler = async (event) => {
         Accept: "application/vnd.github+json",
       },
       body: JSON.stringify({
-        body: "👋 Review request received. Processing all .tex files now... Check the Actions tab for the progress.",
+        body: `${flag} Review request received! Analyzing all \`.tex\` files...\n\n` +
+          `**Language:** ${langName}\n` +
+          `**Commit:** \`${commit_sha.slice(0, 7)}\`\n\n` +
+          `_Check the Actions tab for progress._`,
       }),
     }
   );
@@ -109,6 +173,8 @@ module.exports.handler = async (event) => {
           commit_sha,
           comment_body,
           comment_author,
+          comment_id,
+          language,
         },
       }),
     }
@@ -118,5 +184,5 @@ module.exports.handler = async (event) => {
     const text = await res.text();
     return { statusCode: 500, body: `dispatch failed ${res.status}: ${text}` };
   }
-  return { statusCode: 200, body: "review dispatched" };
+  return { statusCode: 200, body: `review dispatched (lang: ${language})` };
 };

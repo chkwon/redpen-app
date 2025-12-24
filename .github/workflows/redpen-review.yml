@@ -24,15 +24,22 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip
 
-      - name: Run OpenAI LaTeX review
+      - name: Download RedPen scripts
+        run: |
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
+          mkdir -p prompts
+          curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
+          # Download default config if not present in repo
+          if [ ! -f config.yml ]; then
+            curl -so config.yml https://raw.githubusercontent.com/chkwon/redpen-app/main/config.yml
+          fi
+
+      - name: Run RedPen LaTeX review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
-        run: |
-          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
-          mkdir -p prompts
-          curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
-          python openai_review.py
+          REDPEN_CONFIG_PATH: config.yml
+        run: python openai_review.py

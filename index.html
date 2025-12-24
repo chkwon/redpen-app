@@ -301,6 +301,23 @@
       font-weight: 600;
     }
 
+    .language-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      justify-content: center;
+    }
+
+    .language-options .trigger {
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+
+    .flag {
+      margin-left: 4px;
+    }
+
     /* Step Action Button */
     .step-btn {
       display: inline-flex;
@@ -491,16 +508,21 @@ jobs:
 
       - run: pip install --upgrade pip
 
+      - run: |
+          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
+          mkdir -p prompts
+          curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
+          if [ ! -f config.yml ]; then
+            curl -so config.yml https://raw.githubusercontent.com/chkwon/redpen-app/main/config.yml
+          fi
+
       - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
-        run: |
-          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
-          mkdir -p prompts
-          curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
-          python openai_review.py</pre>
+        run: python openai_review.py</pre>
               </div>
             </div>
           </div>
@@ -537,6 +559,51 @@ jobs:
             <div class="trigger">
               <span class="trigger-at">@RedPenApp</span> review
             </div>
+            <p style="margin-top: 16px;">Get feedback in your language by adding a language code:</p>
+            <div class="language-options">
+              <div class="trigger"><span class="trigger-at">@RedPenApp</span> review ko <span class="flag">🇰🇷</span></div>
+              <div class="trigger"><span class="trigger-at">@RedPenApp</span> review zh <span class="flag">🇨🇳</span></div>
+              <div class="trigger"><span class="trigger-at">@RedPenApp</span> review ja <span class="flag">🇯🇵</span></div>
+              <div class="trigger"><span class="trigger-at">@RedPenApp</span> review vi <span class="flag">🇻🇳</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Configuration Section -->
+  <section class="steps-section" style="padding-top: 0;">
+    <div class="container">
+      <p class="section-title">Configuration</p>
+      <h2 class="section-heading">Customize RedPen</h2>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-content">
+            <h3>Optional: Add a config file</h3>
+            <p>Create <code>config.yml</code> in your repository root to customize the LLM model, default language, and other settings:</p>
+            <div class="code-block">
+              <div class="code-header">
+                <span class="code-filename">config.yml</span>
+                <button class="copy-btn" onclick="copyConfig()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy
+                </button>
+              </div>
+              <div class="code-body">
+<pre id="config"># RedPen Configuration
+
+# LLM Model (gpt-5-nano, gpt-5-mini, gpt-5-thinking, gpt-5-pro)
+model: gpt-5-mini
+
+# Default response language (en, ko, zh, ja, vi)
+language: en
+
+# Max characters per file to review
+max_chars: 20000</pre>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -561,7 +628,15 @@ jobs:
   <script>
     function copyCode() {
       navigator.clipboard.writeText(document.getElementById('code').textContent);
-      const btn = document.querySelector('.copy-btn');
+      const btn = document.querySelectorAll('.copy-btn')[0];
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => btn.innerHTML = originalHTML, 2000);
+    }
+
+    function copyConfig() {
+      navigator.clipboard.writeText(document.getElementById('config').textContent);
+      const btn = document.querySelectorAll('.copy-btn')[1];
       const originalHTML = btn.innerHTML;
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
       setTimeout(() => btn.innerHTML = originalHTML, 2000);

@@ -1,0 +1,26 @@
+# RedPen Configuration
+# Place this file in the root of your repository to customize RedPen behavior.
+# All settings are optional - defaults will be used if not specified.
+
+# LLM Model Configuration
+# Supported models: gpt-5-nano, gpt-5-mini, gpt-5-thinking, gpt-5-pro, gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o1-mini, o1-preview
+# Default: gpt-5-mini
+model: gpt-5-mini
+
+# Response Language
+# The language for review comments and suggestions.
+# Papers are always reviewed for English grammar, but feedback will be in this language.
+# Supported: en (English), ko (Korean), zh (Chinese), ja (Japanese), vi (Vietnamese)
+# Can also be overridden per-request: @RedPenApp review ko
+# Default: en
+language: en
+
+# Maximum characters to review per file
+# Larger files will be truncated. Increase for thorough reviews of long documents.
+# Default: 20000
+max_chars: 20000
+
+# Temperature for LLM responses (0.0 - 1.0)
+# Lower = more consistent, Higher = more creative
+# Default: not set (uses model default)
+# temperature: 0.3

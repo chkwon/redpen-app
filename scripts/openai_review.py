@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch a LaTeX file at a commit, ask OpenAI to review it, and post the JSON result as a commit comment."""
+"""Fetch LaTeX files at a commit, ask OpenAI to review them, and post the result as a commit comment."""
 
 from __future__ import annotations
 
@@ -10,12 +10,40 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-
+# API Configuration
 API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_LANGUAGE = "en"
+DEFAULT_MAX_CHARS = 20000
 PROMPT_PATH = Path(os.getenv("REVIEW_PROMPT_PATH", "prompts/review_prompt.md"))
+CONFIG_PATH = Path(os.getenv("REDPEN_CONFIG_PATH", "config.yml"))
+
+# Language configuration
+LANGUAGE_FLAGS = {
+    "en": "🇺🇸",
+    "ko": "🇰🇷",
+    "zh": "🇨🇳",
+    "ja": "🇯🇵",
+    "vi": "🇻🇳",
+}
+
+LANGUAGE_NAMES = {
+    "en": "English",
+    "ko": "Korean",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "vi": "Vietnamese",
+}
+
+LANGUAGE_INSTRUCTIONS = {
+    "en": "Write all feedback, explanations, and suggestions in English.",
+    "ko": "모든 피드백, 설명, 제안을 한국어로 작성하세요. Write all feedback, explanations, and suggestions in Korean.",
+    "zh": "请用中文撰写所有反馈、解释和建议。Write all feedback, explanations, and suggestions in Chinese.",
+    "ja": "すべてのフィードバック、説明、提案を日本語で記述してください。Write all feedback, explanations, and suggestions in Japanese.",
+    "vi": "Viết tất cả phản hồi, giải thích và đề xuất bằng tiếng Việt. Write all feedback, explanations, and suggestions in Vietnamese.",
+}
 
 
 def require_env(name: str) -> str:
@@ -23,6 +51,49 @@ def require_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
+
+
+def load_config() -> Dict[str, Any]:
+    """Load configuration from config.yml if it exists."""
+    config = {
+        "model": DEFAULT_MODEL,
+        "language": DEFAULT_LANGUAGE,
+        "max_chars": DEFAULT_MAX_CHARS,
+    }
+
+    if CONFIG_PATH.exists():
+        try:
+            content = CONFIG_PATH.read_text(encoding="utf-8")
+            # Simple YAML parsing for our flat config (no external dependency)
+            for line in content.split("\n"):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    # Remove quotes if present
+                    if value.startswith('"') and value.endswith('"'):
+                        value = value[1:-1]
+                    elif value.startswith("'") and value.endswith("'"):
+                        value = value[1:-1]
+                    # Convert numeric values
+                    if key == "max_chars":
+                        try:
+                            value = int(value)
+                        except ValueError:
+                            pass
+                    elif key == "temperature":
+                        try:
+                            value = float(value)
+                        except ValueError:
+                            pass
+                    config[key] = value
+        except Exception as e:
+            print(f"Warning: Could not parse config.yml: {e}", file=sys.stderr)
+
+    return config
 
 
 def gh_request(url: str, token: str, data: Dict[str, Any] | None = None, method: str = "GET") -> Any:
@@ -63,15 +134,28 @@ def list_tex_files(repo: str, ref: str, token: str) -> List[str]:
     ]
 
 
-def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str) -> str:
+def add_reaction(repo: str, comment_id: int, token: str, emoji: str) -> bool:
+    """Add an emoji reaction to a comment."""
+    url = f"https://api.github.com/repos/{repo}/comments/{comment_id}/reactions"
+    try:
+        gh_request(url, token, data={"content": emoji}, method="POST")
+        return True
+    except Exception:
+        return False
+
+
+def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str, model: str, language: str, temperature: Optional[float] = None) -> str:
+    lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en"])
+
     user_prompt = (
-        f"Review the LaTeX file `{file_path}` using the instructions. "
+        f"Review the LaTeX file `{file_path}` using the instructions.\n\n"
+        f"**IMPORTANT**: {lang_instruction}\n\n"
         "Return valid JSON only. Use 1-based line numbers.\n\n"
         f"Content:\n{file_text}"
     )
 
     request_body = {
-        "model": MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt.strip()},
             {"role": "user", "content": user_prompt},
@@ -79,10 +163,11 @@ def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str
         "response_format": {"type": "json_object"},
     }
 
-    # Only add temperature if not using a model that doesn't support it
-    temperature = os.getenv("OPENAI_TEMPERATURE")
+    # Add temperature if specified
     if temperature is not None:
-        request_body["temperature"] = float(temperature)
+        request_body["temperature"] = temperature
+    elif os.getenv("OPENAI_TEMPERATURE"):
+        request_body["temperature"] = float(os.getenv("OPENAI_TEMPERATURE"))
 
     body = json.dumps(request_body).encode("utf-8")
 
@@ -120,7 +205,7 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
     # Build line lookup for quoting source
     source_lines = file_content.split("\n") if file_content else []
 
-    lines = [f"### {file_path}"]
+    lines = [f"### 📄 {file_path}"]
 
     summary = data.get("summary", "")
     if summary:
@@ -128,19 +213,19 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
 
     comments = data.get("comments", [])
     if not comments:
-        lines.append("\nNo issues found.")
+        lines.append("\n✅ No issues found.\n")
         return "\n".join(lines)
 
     severity_icons = {
         "error": "🔴",
         "warning": "🟡",
-        "suggestion": "🔵",
+        "suggestion": "💡",
     }
 
     for comment in comments:
         line_num = comment.get("line", "?")
         severity = comment.get("severity", "suggestion")
-        icon = severity_icons.get(severity, "🔵")
+        icon = severity_icons.get(severity, "💡")
         category = comment.get("category", "")
         original = comment.get("original", "")
         issue = comment.get("issue", "")
@@ -157,7 +242,7 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
                     actual_line_num = i + 1
                     break
 
-        lines.append(f"**{icon} Line {actual_line_num}** ({category})")
+        lines.append(f"\n---\n\n{icon} **Line {actual_line_num}** · `{category}`")
 
         # Quote context around the problematic line (2 lines before, target line, 2 lines after)
         if isinstance(actual_line_num, int) and 1 <= actual_line_num <= len(source_lines):
@@ -170,17 +255,16 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
                 prefix = "→" if line_number == actual_line_num else " "
                 context_lines.append(f"{prefix} {line_number:4d} │ {line_text}")
             if context_lines:
-                lines.append("```latex")
+                lines.append("\n```latex")
                 lines.extend(context_lines)
                 lines.append("```")
 
         if issue:
-            lines.append(f"**Issue:** {issue}")
+            lines.append(f"\n**Issue:** {issue}")
         if suggestion:
-            lines.append(f"**Suggestion:** {suggestion}")
+            lines.append(f"\n**Suggestion:** {suggestion}")
         if explanation:
-            lines.append(f"*{explanation}*")
-        lines.append("")
+            lines.append(f"\n> 💬 {explanation}")
 
     return "\n".join(lines)
 
@@ -196,6 +280,12 @@ def main() -> int:
     github_token = require_env("GITHUB_TOKEN")
     repo = require_env("GITHUB_REPOSITORY")
 
+    # Load configuration
+    config = load_config()
+    model = os.getenv("OPENAI_MODEL") or config.get("model", DEFAULT_MODEL)
+    max_chars = int(os.getenv("MAX_REVIEW_CHARS", config.get("max_chars", DEFAULT_MAX_CHARS)))
+    temperature = config.get("temperature")
+
     with open(require_env("GITHUB_EVENT_PATH"), "r", encoding="utf-8") as handle:
         event = json.load(handle)
 
@@ -204,6 +294,14 @@ def main() -> int:
     if not commit_sha:
         raise RuntimeError("Missing commit SHA in dispatch payload")
 
+    # Get language from payload (set by webhook) or config
+    language = payload.get("language") or config.get("language", DEFAULT_LANGUAGE)
+    if language not in LANGUAGE_FLAGS:
+        language = DEFAULT_LANGUAGE
+
+    # Get comment ID for adding rocket reaction on success
+    trigger_comment_id = payload.get("comment_id")
+
     prompt_text = load_prompt()
     tex_paths = list_tex_files(repo, commit_sha, github_token)
     if not tex_paths:
@@ -211,25 +309,38 @@ def main() -> int:
             repo,
             commit_sha,
             github_token,
-            "No `.tex` files found to review at this commit.",
+            "📭 No `.tex` files found to review at this commit.",
         )
         return 0
 
-    max_chars = int(os.getenv("MAX_REVIEW_CHARS", "20000"))
     results = []
     for path in tex_paths:
         file_text = fetch_file(repo, path, commit_sha, github_token)
         original_text = file_text  # Keep original for quoting
         if len(file_text) > max_chars:
             file_text = file_text[:max_chars]
-        review_json = call_openai(openai_key, prompt_text, path, file_text)
+        review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature)
         results.append((path, review_json, original_text))
 
-    parts = [f"## RedPen Review\n\nReviewed {len(results)} `.tex` file(s) at commit `{commit_sha[:7]}`.\n"]
+    # Build the review comment
+    flag = LANGUAGE_FLAGS.get(language, "🇺🇸")
+    lang_name = LANGUAGE_NAMES.get(language, "English")
+
+    header = f"## 🖊️ RedPen Review {flag}\n\n"
+    header += f"Reviewed **{len(results)}** `.tex` file(s) at commit `{commit_sha[:7]}`\n"
+    header += f"**Model:** `{model}` · **Language:** {lang_name}\n"
+
+    parts = [header]
     for path, review_json, file_content in results:
         parts.append(format_review_as_markdown(path, review_json, file_content))
+
     comment_body = "\n---\n".join(parts)
     post_commit_comment(repo, commit_sha, github_token, comment_body)
+
+    # Add rocket reaction to the original trigger comment to indicate success
+    if trigger_comment_id:
+        add_reaction(repo, trigger_comment_id, github_token, "rocket")
+
     return 0
 
 
