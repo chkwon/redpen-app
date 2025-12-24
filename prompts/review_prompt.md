@@ -173,15 +173,18 @@ Return a JSON object:
       "severity": "error|warning|suggestion",
       "category": "grammar|spelling|latex|style",
       "original": "The exact text from the source that has the issue",
-      "issue": "Brief description of the problem",
-      "suggestion": "Concrete fix with corrected text",
-      "explanation": "Why this matters"
+      "issue": "Brief description of the problem (use markdown: wrap LaTeX commands in backticks like `\\emph{}`, `\\\\`)",
+      "suggestion": "Concrete fix with corrected text (use markdown: wrap LaTeX commands in backticks)",
+      "explanation": "Why this matters (use markdown formatting)"
     }
   ]
 }
 ```
 
-**CRITICAL**: The `line` number must be accurate. Count lines carefully from the beginning of the file (line 1 is the first line). The `original` field must contain the EXACT text from that line - copy it character-for-character from the source.
+**CRITICAL**:
+- The `line` number must be accurate. Count lines carefully from the beginning of the file (line 1 is the first line).
+- The `original` field must contain the EXACT text from that line - copy it character-for-character from the source.
+- Format `issue`, `suggestion`, and `explanation` as markdown. Wrap all LaTeX commands (like `\\`, `\begin{}`, `\ref{}`, `\emph{}`) in backticks so they render properly.
 
 ### Severity Guidelines
 - **error**: Grammar mistakes, spelling errors, broken LaTeX
