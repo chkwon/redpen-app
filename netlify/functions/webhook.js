@@ -2,7 +2,6 @@ const crypto = require("crypto");
 const jsonwebtoken = require("jsonwebtoken"); // bundled via Netlify Node runtime
 
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
-const GITHUB_INSTALLATION_ID = process.env.GITHUB_INSTALLATION_ID;
 const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escaped
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
 const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@redpenapp review").toLowerCase();
@@ -50,11 +49,11 @@ function appJwt() {
   return token;
 }
 
-// Exchange for installation token
-async function installationToken() {
+// Exchange for installation token using the installation ID from the webhook payload
+async function installationToken(installationId) {
   const jwt = appJwt();
   const res = await fetch(
-    `https://api.github.com/app/installations/${GITHUB_INSTALLATION_ID}/access_tokens`,
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
       headers: {
@@ -125,7 +124,13 @@ module.exports.handler = async (event) => {
     return { statusCode: 200, body: "ignored: trigger not found" };
   }
 
-  const token = await installationToken();
+  // Get installation ID from the webhook payload
+  const installationId = payload.installation?.id;
+  if (!installationId) {
+    return { statusCode: 400, body: "missing installation id in payload" };
+  }
+
+  const token = await installationToken(installationId);
 
   // Add :eyes: reaction to acknowledge the trigger comment
   if (comment_id) {
