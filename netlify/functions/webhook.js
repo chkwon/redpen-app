@@ -5,7 +5,7 @@ const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_INSTALLATION_ID = process.env.GITHUB_INSTALLATION_ID;
 const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escaped
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
-const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@RedPenApp check").toLowerCase();
+const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@RedPenApp review").toLowerCase();
 
 function requireEnv(name, value) {
   if (!value) {
@@ -74,17 +74,26 @@ module.exports.handler = async (event) => {
     return { statusCode: 200, body: "ignored: trigger not found" };
   }
 
-  // Expect a LaTeX file path after the word "review"
-  const pathMatch = comment_body.match(/review\\s+([^\\s]+\\.tex)/i);
-  if (!pathMatch) {
-    return {
-      statusCode: 200,
-      body: "ignored: no tex path; use '@RedPenApp check review path/to/file.tex'",
-    };
-  }
-  const targetFile = pathMatch[1];
-
   const token = await installationToken();
+
+  // Acknowledge receipt to the commit thread.
+  const pending = await fetch(
+    `https://api.github.com/repos/${payload.repository.full_name}/commits/${commit_sha}/comments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({
+        body: "👋 Review request received. Processing all .tex files now…",
+      }),
+    }
+  );
+  if (!pending.ok) {
+    const text = await pending.text();
+    return { statusCode: 500, body: `pending comment failed ${pending.status}: ${text}` };
+  }
 
   const res = await fetch(
     `https://api.github.com/repos/${payload.repository.full_name}/dispatches`,
@@ -100,7 +109,6 @@ module.exports.handler = async (event) => {
           commit_sha,
           comment_body,
           comment_author,
-          target_file: targetFile,
         },
       }),
     }

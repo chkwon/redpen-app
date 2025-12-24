@@ -1,11 +1,11 @@
 # Redpen LaTeX Reviewer
 
-GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with OpenAI. Mention `@RedPenApp check review path/to/file.tex` on a commit comment; the App dispatches a workflow that runs the OpenAI review and comments back with JSON feedback.
+GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with OpenAI. Mention `@RedPenApp review` on a commit comment; the App dispatches a workflow that reviews all `.tex` files at that commit and comments back with JSON feedback. A pending acknowledgement is posted immediately; results follow when the workflow completes.
 
 ## How it works
 - A GitHub App listens for `commit_comment` webhooks and calls the Netlify Function (`netlify/functions/webhook.js`).
-- The function verifies the signature, checks the trigger phrase, extracts the requested LaTeX path, and fires a `repository_dispatch` event (`redpen-review`) with the commit SHA and file path.
-- The workflow at `.github/workflows/redpen-review.yml` runs on that dispatch, fetches the file at the commit, calls OpenAI (via `scripts/openai_review.py`), and posts the JSON review as a new commit comment.
+- The function verifies the signature, checks the trigger phrase, posts a “received” comment, and fires a `repository_dispatch` event (`redpen-review`) with the commit SHA.
+- The workflow at `.github/workflows/redpen-review.yml` runs on that dispatch, fetches all `.tex` files at the commit, calls OpenAI (via `scripts/openai_review.py`), and posts the JSON reviews as a new commit comment.
 
 ## Setup
 1. Push this repository to GitHub.
@@ -20,8 +20,8 @@ GitHub App + Netlify Function + GitHub Actions that reviews LaTeX files with Ope
    - Install dependencies (`npm install`) so Netlify bundles `jsonwebtoken` for the function.
 4. Configure GitHub Actions secret in the repository:
    - `OPENAI_API_KEY`: your OpenAI key (used by the workflow).
-5. Trigger a review by commenting on a commit with `@RedPenApp check review path/to/file.tex`. The workflow will reply with JSON feedback per the LaTeX reviewer instructions.
+5. Trigger a review by commenting on a commit with `@RedPenApp review`. The workflow will reply with JSON feedback per the LaTeX reviewer instructions.
 
 Notes:
-- Adjust the trigger phrase by setting `TRIGGER_PHRASE` in Netlify (default: `@RedPenApp check`).
-- The workflow can also be run manually via the Actions tab (`Run workflow`) by providing `target_file`.
+- Adjust the trigger phrase by setting `TRIGGER_PHRASE` in Netlify (default: `@RedPenApp review`).
+- The workflow can also be run manually via the Actions tab (`Run workflow`); it will process all `.tex` files at the selected commit.

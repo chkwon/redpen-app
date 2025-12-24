@@ -9,11 +9,13 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, List
 
 
 API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+PROMPT_PATH = Path(os.getenv("REVIEW_PROMPT_PATH", "prompts/review_prompt.md"))
 
 
 def require_env(name: str) -> str:
@@ -50,53 +52,18 @@ def fetch_file(repo: str, path: str, ref: str, token: str) -> str:
     return decoded
 
 
-def call_openai(api_key: str, file_path: str, file_text: str) -> str:
-    system_prompt = """
-You are an expert academic writing reviewer. Your task is to review LaTeX manuscripts and provide constructive feedback.
+def list_tex_files(repo: str, ref: str, token: str) -> List[str]:
+    url = f"https://api.github.com/repos/{repo}/git/trees/{ref}?recursive=1"
+    data = gh_request(url, token)
+    tree = data.get("tree", [])
+    return [
+        entry["path"]
+        for entry in tree
+        if entry.get("type") == "blob" and entry.get("path", "").lower().endswith(".tex")
+    ]
 
-Priority 1: Grammar and Spelling
-This is your PRIMARY focus. Check for spelling, subject-verb agreement, articles, run-ons, dangling modifiers, fragments, wrong prepositions.
 
-Priority 2: LaTeX Best Practices
-- No `\\\\` for new paragraphs; use blank lines.
-- No empty line before equations or before "where" clauses.
-- No `\\\\` after the last line of multi-line equations.
-- Use proper quotes: ``text''.
-- Emphasis: \\emph{} not \\textit{}.
-- Dashes: -- for ranges, --- for breaks.
-- Use \\ref/\\eqref, non-breaking spaces before refs/cites.
-- Citations: \\citet vs \\citep; non-breaking space before parenthetical.
-- Math: avoid bare words as variables.
-- Tables: captions above, booktabs, left-align text, right-align numbers, avoid [h]/[H].
-- Figures: captions below, avoid [h]/[H].
-
-Priority 3: Academic Style
-- Flag informal or vague language.
-- Avoid weak hedging.
-- Define acronyms before use; space before parentheses for acronyms.
-- Avoid starting sentences with symbols/numbers.
-
-Priority 4: Repository Hygiene
-- If .gitignore missing LaTeX ignores, suggest TeX.gitignore.
-- If PDFs are tracked, tell user to delete and gitignore them.
-
-Output JSON only:
-{
-  "summary": "...",
-  "comments": [
-    {
-      "line": 42,
-      "severity": "error|warning|suggestion",
-      "category": "grammar|spelling|latex|style",
-      "issue": "...",
-      "suggestion": "...",
-      "explanation": "..."
-    }
-  ]
-}
-Limit to the 5-7 most important issues.
-"""
-
+def call_openai(api_key: str, system_prompt: str, file_path: str, file_text: str) -> str:
     user_prompt = (
         f"Review the LaTeX file `{file_path}` using the instructions. "
         "Return valid JSON only. Use 1-based line numbers.\n\n"
@@ -105,13 +72,13 @@ Limit to the 5-7 most important issues.
 
     body = json.dumps(
         {
-          "model": MODEL,
-          "messages": [
-              {"role": "system", "content": system_prompt.strip()},
-              {"role": "user", "content": user_prompt},
-          ],
-          "temperature": 0.2,
-          "response_format": {"type": "json_object"},
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt.strip()},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
         }
     ).encode("utf-8")
 
@@ -139,6 +106,12 @@ def post_commit_comment(repo: str, sha: str, token: str, body: str) -> None:
     gh_request(url, token, data={"body": body}, method="POST")
 
 
+def load_prompt() -> str:
+    if not PROMPT_PATH.exists():
+        raise RuntimeError(f"Review prompt not found at {PROMPT_PATH}")
+    return PROMPT_PATH.read_text(encoding="utf-8")
+
+
 def main() -> int:
     openai_key = require_env("OPENAI_API_KEY")
     github_token = require_env("GITHUB_TOKEN")
@@ -149,22 +122,35 @@ def main() -> int:
 
     payload = event.get("client_payload") or {}
     commit_sha = payload.get("commit_sha") or os.getenv("GITHUB_SHA")
-    target_file = (
-        payload.get("target_file")
-        or os.getenv("TARGET_FILE")
-        or "main.tex"
-    )
     if not commit_sha:
         raise RuntimeError("Missing commit SHA in dispatch payload")
 
-    file_text = fetch_file(repo, target_file, commit_sha, github_token)
-    # Clip very long files to keep request size manageable.
-    max_chars = int(os.getenv("MAX_REVIEW_CHARS", "20000"))
-    if len(file_text) > max_chars:
-        file_text = file_text[:max_chars]
+    prompt_text = load_prompt()
+    tex_paths = list_tex_files(repo, commit_sha, github_token)
+    if not tex_paths:
+        post_commit_comment(
+            repo,
+            commit_sha,
+            github_token,
+            "No `.tex` files found to review at this commit.",
+        )
+        return 0
 
-    review_json = call_openai(openai_key, target_file, file_text)
-    comment_body = f"OpenAI review for `{target_file}`:\n\n```json\n{review_json}\n```"
+    max_chars = int(os.getenv("MAX_REVIEW_CHARS", "20000"))
+    results = []
+    for path in tex_paths:
+        file_text = fetch_file(repo, path, commit_sha, github_token)
+        if len(file_text) > max_chars:
+            file_text = file_text[:max_chars]
+        review_json = call_openai(openai_key, prompt_text, path, file_text)
+        results.append((path, review_json))
+
+    parts = [
+        f"OpenAI review results for commit `{commit_sha}` (processed {len(results)} .tex files):"
+    ]
+    for path, content in results:
+        parts.append(f"\nFile `{path}`:\n```json\n{content}\n```")
+    comment_body = "\n".join(parts)
     post_commit_comment(repo, commit_sha, github_token, comment_body)
     return 0
 

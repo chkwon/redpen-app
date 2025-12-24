@@ -4,25 +4,17 @@ on:
   repository_dispatch:
     types: [redpen-review]
   workflow_dispatch:
-    inputs:
-      target_file:
-        description: "Path to the LaTeX file to review"
-        required: true
-        default: "main.tex"
 
 jobs:
   review:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      TARGET_FILE: ${{ github.event.client_payload.target_file || inputs.target_file }}
-      COMMIT_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.COMMIT_SHA }}
+          ref: ${{ github.event.client_payload.commit_sha || github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -36,8 +28,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TARGET_FILE: ${{ env.TARGET_FILE }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_SHA: ${{ env.COMMIT_SHA }}
+          GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
         run: python scripts/openai_review.py
