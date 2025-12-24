@@ -170,7 +170,7 @@ def format_review_as_markdown(file_path: str, review_json: str, file_content: st
                 prefix = "→" if line_number == actual_line_num else " "
                 context_lines.append(f"{prefix} {line_number:4d} │ {line_text}")
             if context_lines:
-                lines.append("```")
+                lines.append("```latex")
                 lines.extend(context_lines)
                 lines.append("```")
 
