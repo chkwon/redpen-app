@@ -2,6 +2,7 @@ name: Redpen Commit Check
 
 on:
   commit_comment:
+    types: [created]
 
 jobs:
   respond-with-timestamp:
