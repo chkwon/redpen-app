@@ -120,7 +120,7 @@ Flag these common issues:
 - **Informal language**: "a lot", "really", "thing", "stuff", "get"
 - **Weak hedging**: "somewhat", "fairly", "quite", "rather"
 - **Vague claims**: "it works well", "good results", "significant improvement"
-- **Missing articles with acronyms**: "a MIP" not "a mixed integer program(MIP)"
+- **Parentheses with acronyms require a space**: "a mixed integer program (MIP)" not "a mixed integer program(MIP)"
 - **Undefined acronyms**: Define before first use
 
 ### 4. Repository Hygiene

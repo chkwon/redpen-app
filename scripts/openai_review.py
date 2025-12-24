@@ -294,8 +294,8 @@ def main() -> int:
     if not commit_sha:
         raise RuntimeError("Missing commit SHA in dispatch payload")
 
-    # Get language from payload (set by webhook) or config
-    language = payload.get("language") or config.get("language", DEFAULT_LANGUAGE)
+    # Get language from environment, payload (set by webhook), or config
+    language = os.getenv("REVIEW_LANGUAGE") or payload.get("language") or config.get("language", DEFAULT_LANGUAGE)
     if language not in LANGUAGE_FLAGS:
         language = DEFAULT_LANGUAGE
 

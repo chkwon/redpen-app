@@ -1,45 +1,154 @@
 name: RedPen LaTeX Review
 
 on:
+  workflow_call:
+    inputs:
+      redpen-ref:
+        description: 'Version of redpen-app to use (e.g., v1, v1.0.0, main)'
+        required: false
+        type: string
+        default: 'main'
+      commit_sha:
+        description: 'Commit SHA to review'
+        required: true
+        type: string
+      comment_id:
+        description: 'Comment ID to add reactions to'
+        required: false
+        type: number
+        default: 0
+      language:
+        description: 'Language for review comments (en, ko, zh, ja, vi)'
+        required: false
+        type: string
+        default: 'en'
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+
   repository_dispatch:
     types: [redpen-review]
+
   workflow_dispatch:
+    inputs:
+      language:
+        description: 'Language for review comments'
+        required: false
+        default: 'en'
+        type: choice
+        options:
+          - en
+          - ko
+          - zh
+          - ja
+          - vi
 
 jobs:
   review:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
+      - name: Set variables
+        id: vars
+        run: |
+          # Handle different trigger sources
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "commit_sha=${{ github.event.client_payload.commit_sha }}" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ github.event.client_payload.comment_id }}" >> $GITHUB_OUTPUT
+            echo "language=${{ github.event.client_payload.language || 'en' }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_call" ]; then
+            echo "commit_sha=${{ inputs.commit_sha }}" >> $GITHUB_OUTPUT
+            echo "comment_id=${{ inputs.comment_id }}" >> $GITHUB_OUTPUT
+            echo "language=${{ inputs.language || 'en' }}" >> $GITHUB_OUTPUT
+          else
+            echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "comment_id=0" >> $GITHUB_OUTPUT
+            echo "language=${{ inputs.language || 'en' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: React with eyes
+        if: steps.vars.outputs.comment_id != 0 && steps.vars.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.vars.outputs.comment_id }},
+              content: 'eyes'
+            });
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.client_payload.commit_sha || github.sha }}
+          ref: ${{ steps.vars.outputs.commit_sha }}
+
+      - name: Checkout redpen-app
+        uses: actions/checkout@v4
+        with:
+          repository: chkwon/redpen-app
+          ref: ${{ inputs.redpen-ref || 'main' }}
+          path: .redpen
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install dependencies
-        run: python -m pip install --upgrade pip
-
-      - name: Download RedPen scripts
+      - name: Prepare review environment
         run: |
-          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
-          mkdir -p prompts
-          curl -so prompts/review_prompt.md https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
-          # Download default config if not present in repo
-          if [ ! -f config.yml ]; then
-            curl -so config.yml https://raw.githubusercontent.com/chkwon/redpen-app/main/config.yml
+          # Create working directory
+          mkdir -p .redpen-run/prompts
+
+          # Copy scripts from redpen-app
+          cp .redpen/scripts/openai_review.py .redpen-run/
+          cp .redpen/prompts/review_prompt.md .redpen-run/prompts/
+          cp .redpen/config.yml .redpen-run/
+
+          # Override with local config if exists
+          if [ -f config.yml ]; then
+            echo "Using local config.yml"
+            cp config.yml .redpen-run/config.yml
+          fi
+          if [ -f prompts/review_prompt.md ]; then
+            echo "Using local prompts/review_prompt.md"
+            cp prompts/review_prompt.md .redpen-run/prompts/review_prompt.md
           fi
 
       - name: Run RedPen LaTeX review
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
-          REDPEN_CONFIG_PATH: config.yml
-        run: python openai_review.py
+          GITHUB_SHA: ${{ steps.vars.outputs.commit_sha }}
+          REDPEN_CONFIG_PATH: .redpen-run/config.yml
+          REVIEW_PROMPT_PATH: .redpen-run/prompts/review_prompt.md
+          REVIEW_LANGUAGE: ${{ steps.vars.outputs.language }}
+        run: python .redpen-run/openai_review.py
+
+      - name: React with rocket on success
+        if: success() && steps.vars.outputs.comment_id != 0 && steps.vars.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.vars.outputs.comment_id }},
+              content: 'rocket'
+            });
+
+      - name: React with confused on failure
+        if: failure() && steps.vars.outputs.comment_id != 0 && steps.vars.outputs.comment_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ steps.vars.outputs.comment_id }},
+              content: 'confused'
+            });
