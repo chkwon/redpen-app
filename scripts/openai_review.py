@@ -461,7 +461,16 @@ def load_prompt() -> str:
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
+def log(message: str) -> None:
+    """Print a timestamped log message."""
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] {message}", flush=True)
+
+
 def main() -> int:
+    log("Starting RedPen review...")
+
     openai_key = require_env("OPENAI_API_KEY")
     github_token = require_env("GITHUB_TOKEN")
     repo = require_env("GITHUB_REPOSITORY")
@@ -471,6 +480,7 @@ def main() -> int:
     model = os.getenv("OPENAI_MODEL") or config.get("model", DEFAULT_MODEL)
     max_chars = int(os.getenv("MAX_REVIEW_CHARS", config.get("max_chars", DEFAULT_MAX_CHARS)))
     temperature = config.get("temperature")
+    log(f"Configuration loaded: model={model}, max_chars={max_chars}")
 
     with open(require_env("GITHUB_EVENT_PATH"), "r", encoding="utf-8") as handle:
         event = json.load(handle)
@@ -491,15 +501,20 @@ def main() -> int:
     # Get number of commits to review (default: 1, meaning just the current commit)
     num_commits = int(os.getenv("NUM_COMMITS") or payload.get("num_commits") or 1)
 
+    log(f"Review settings: commit={commit_sha[:7]}, language={language}, mode={review_mode}, num_commits={num_commits}")
+
     # Get comment ID for adding rocket reaction on success
     trigger_comment_id = payload.get("comment_id")
 
     prompt_text = load_prompt()
+    log("Review prompt loaded")
 
     # In diff mode, only review files that changed
+    log("Fetching changed files...")
     if review_mode == "diff":
         if num_commits > 1:
             # Review changes across multiple commits
+            log(f"Comparing changes across last {num_commits} commits...")
             changed_files = fetch_multi_commit_diff(repo, commit_sha, num_commits, github_token)
         else:
             # Review only the current commit
@@ -509,7 +524,10 @@ def main() -> int:
         changed_files = {}
         tex_paths = list_tex_files(repo, commit_sha, github_token)
 
+    log(f"Found {len(tex_paths)} .tex file(s) to review")
+
     if not tex_paths:
+        log("No .tex files found, posting comment and exiting")
         post_commit_comment(
             repo,
             commit_sha,
@@ -519,7 +537,9 @@ def main() -> int:
         return 0
 
     results = []
-    for path in tex_paths:
+    total_files = len(tex_paths)
+    for file_idx, path in enumerate(tex_paths, 1):
+        log(f"[{file_idx}/{total_files}] Processing: {path}")
         file_text = fetch_file(repo, path, commit_sha, github_token)
         original_text = file_text  # Keep original for quoting
 
@@ -528,21 +548,27 @@ def main() -> int:
         if is_diff_mode:
             line_ranges = changed_files[path]
             file_text, _ = extract_changed_regions(file_text, line_ranges, context_lines=5)
+            log(f"[{file_idx}/{total_files}] Extracted {len(line_ranges)} changed region(s), {len(file_text)} chars")
 
         if len(file_text) <= max_chars:
             # File fits in one chunk
+            log(f"[{file_idx}/{total_files}] Sending to OpenAI ({len(file_text)} chars)...")
             review_json = call_openai(openai_key, prompt_text, path, file_text, model, language, temperature, diff_mode=is_diff_mode)
+            log(f"[{file_idx}/{total_files}] Review received")
         else:
             # Split into chunks and review each
             chunks = chunk_file_by_lines(file_text, max_chars)
             all_comments = []
             summary_parts = []
+            log(f"[{file_idx}/{total_files}] File too large, splitting into {len(chunks)} chunks")
 
             for chunk_idx, (chunk_text, start_line) in enumerate(chunks):
+                log(f"[{file_idx}/{total_files}] Reviewing chunk {chunk_idx + 1}/{len(chunks)} ({len(chunk_text)} chars)...")
                 chunk_info = f"This is chunk {chunk_idx + 1} of {len(chunks)}, starting at line {start_line}."
                 chunk_json = call_openai(
                     openai_key, prompt_text, path, chunk_text, model, language, temperature, chunk_info, diff_mode=is_diff_mode
                 )
+                log(f"[{file_idx}/{total_files}] Chunk {chunk_idx + 1}/{len(chunks)} complete")
 
                 # Parse and merge results
                 try:
@@ -573,6 +599,9 @@ def main() -> int:
             review_json = json.dumps(merged)
 
         results.append((path, review_json, original_text))
+        log(f"[{file_idx}/{total_files}] Done: {path}")
+
+    log("All files reviewed, formatting results...")
 
     # Build the review comment
     flag = LANGUAGE_FLAGS.get(language, "🇺🇸")
@@ -593,12 +622,15 @@ def main() -> int:
         parts.append(format_review_as_markdown(path, review_json, file_content))
 
     comment_body = "\n---\n".join(parts)
+    log(f"Posting review comment ({len(comment_body)} chars)...")
     post_commit_comment(repo, commit_sha, github_token, comment_body)
+    log("Review comment posted successfully")
 
     # Add rocket reaction to the original trigger comment to indicate success
     if trigger_comment_id:
         add_reaction(repo, trigger_comment_id, github_token, "rocket")
 
+    log("RedPen review complete!")
     return 0
 
 
