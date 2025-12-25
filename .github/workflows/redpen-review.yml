@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: 'en'
+      num_commits:
+        description: 'Number of commits to include in review (default: 1)'
+        required: false
+        type: number
+        default: 1
     secrets:
       OPENAI_API_KEY:
         required: true
@@ -42,6 +47,11 @@ on:
           - zh
           - ja
           - vi
+      num_commits:
+        description: 'Number of commits to review'
+        required: false
+        default: '1'
+        type: string
 
 jobs:
   review:
@@ -58,14 +68,17 @@ jobs:
             echo "commit_sha=${{ github.event.client_payload.commit_sha }}" >> $GITHUB_OUTPUT
             echo "comment_id=${{ github.event.client_payload.comment_id }}" >> $GITHUB_OUTPUT
             echo "language=${{ github.event.client_payload.language || 'en' }}" >> $GITHUB_OUTPUT
+            echo "num_commits=${{ github.event.client_payload.num_commits || '1' }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "workflow_call" ]; then
             echo "commit_sha=${{ inputs.commit_sha }}" >> $GITHUB_OUTPUT
             echo "comment_id=${{ inputs.comment_id }}" >> $GITHUB_OUTPUT
             echo "language=${{ inputs.language || 'en' }}" >> $GITHUB_OUTPUT
+            echo "num_commits=${{ inputs.num_commits || '1' }}" >> $GITHUB_OUTPUT
           else
             echo "commit_sha=${{ github.sha }}" >> $GITHUB_OUTPUT
             echo "comment_id=0" >> $GITHUB_OUTPUT
             echo "language=${{ inputs.language || 'en' }}" >> $GITHUB_OUTPUT
+            echo "num_commits=${{ inputs.num_commits || '1' }}" >> $GITHUB_OUTPUT
           fi
 
       - name: React with eyes
@@ -127,6 +140,7 @@ jobs:
           REDPEN_CONFIG_PATH: .redpen-run/config.yml
           REVIEW_PROMPT_PATH: .redpen-run/prompts/review_prompt.md
           REVIEW_LANGUAGE: ${{ steps.vars.outputs.language }}
+          NUM_COMMITS: ${{ steps.vars.outputs.num_commits }}
         run: python .redpen-run/openai_review.py
 
       - name: React with rocket on success

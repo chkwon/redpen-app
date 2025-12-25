@@ -163,6 +163,58 @@ def fetch_commit_diff(repo: str, sha: str, token: str) -> Dict[str, List[tuple[i
     return changed_files
 
 
+def fetch_multi_commit_diff(repo: str, sha: str, num_commits: int, token: str) -> Dict[str, List[tuple[int, int]]]:
+    """Fetch the combined diff across multiple commits.
+
+    Returns dict mapping file paths to list of (start_line, end_line) tuples for changed regions.
+    """
+    # First, get the list of commits to analyze
+    url = f"https://api.github.com/repos/{repo}/commits?sha={sha}&per_page={num_commits}"
+    commits = gh_request(url, token)
+
+    if not commits or len(commits) == 0:
+        return {}
+
+    # Get the oldest commit's parent as the base for comparison
+    oldest_commit = commits[-1]
+    oldest_sha = oldest_commit.get("sha", "")
+
+    # Get the parent of the oldest commit
+    oldest_url = f"https://api.github.com/repos/{repo}/commits/{oldest_sha}"
+    oldest_data = gh_request(oldest_url, token)
+    parents = oldest_data.get("parents", [])
+
+    if not parents:
+        # No parent means this is the initial commit, compare against empty tree
+        base_sha = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # Git's empty tree SHA
+    else:
+        base_sha = parents[0].get("sha", "")
+
+    # Compare base to current sha
+    compare_url = f"https://api.github.com/repos/{repo}/compare/{base_sha}...{sha}"
+    compare_data = gh_request(compare_url, token)
+
+    changed_files: Dict[str, List[tuple[int, int]]] = {}
+
+    for file_info in compare_data.get("files", []):
+        filename = file_info.get("filename", "")
+        if not filename.lower().endswith(".tex"):
+            continue
+
+        # Parse the patch to extract changed line numbers
+        patch = file_info.get("patch", "")
+        if not patch:
+            # File was added/deleted without patch info - mark entire file
+            changed_files[filename] = [(1, 999999)]
+            continue
+
+        line_ranges = parse_diff_hunks(patch)
+        if line_ranges:
+            changed_files[filename] = line_ranges
+
+    return changed_files
+
+
 def parse_diff_hunks(patch: str) -> List[tuple[int, int]]:
     """Parse unified diff patch and extract changed line ranges in the new file.
 
@@ -436,14 +488,22 @@ def main() -> int:
     # Get review mode: "diff" (default) reviews only changed lines, "full" reviews entire files
     review_mode = os.getenv("REVIEW_MODE") or payload.get("review_mode") or "diff"
 
+    # Get number of commits to review (default: 1, meaning just the current commit)
+    num_commits = int(os.getenv("NUM_COMMITS") or payload.get("num_commits") or 1)
+
     # Get comment ID for adding rocket reaction on success
     trigger_comment_id = payload.get("comment_id")
 
     prompt_text = load_prompt()
 
-    # In diff mode, only review files that changed in this commit
+    # In diff mode, only review files that changed
     if review_mode == "diff":
-        changed_files = fetch_commit_diff(repo, commit_sha, github_token)
+        if num_commits > 1:
+            # Review changes across multiple commits
+            changed_files = fetch_multi_commit_diff(repo, commit_sha, num_commits, github_token)
+        else:
+            # Review only the current commit
+            changed_files = fetch_commit_diff(repo, commit_sha, github_token)
         tex_paths = [p for p in changed_files.keys()]
     else:
         changed_files = {}
@@ -517,7 +577,12 @@ def main() -> int:
     # Build the review comment
     flag = LANGUAGE_FLAGS.get(language, "🇺🇸")
     lang_name = LANGUAGE_NAMES.get(language, "English")
-    mode_label = "Changed lines" if review_mode == "diff" else "Full files"
+    if review_mode == "full":
+        mode_label = "Full files"
+    elif num_commits > 1:
+        mode_label = f"Changed lines (last {num_commits} commits)"
+    else:
+        mode_label = "Changed lines"
 
     header = f"## 🖊️ RedPen Review {flag}\n\n"
     header += f"Reviewed **{len(results)}** `.tex` file(s) at commit `{commit_sha[:7]}`\n"

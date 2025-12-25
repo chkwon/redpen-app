@@ -84,15 +84,17 @@ async function addReaction(token, repoFullName, commentId, emoji) {
 }
 
 // Parse options from trigger comment
-// Supports: "@RedPenApp review", "@RedPenApp review full", "@RedPenApp review ko", "@RedPenApp review full ko"
+// Supports: "@RedPenApp review", "@RedPenApp review full", "@RedPenApp review ko",
+// "@RedPenApp review full ko", "@RedPenApp review 5" (review last 5 commits)
 function parseOptions(commentBody) {
   const lowerBody = commentBody.toLowerCase();
   const triggerIndex = lowerBody.indexOf(TRIGGER_PHRASE);
 
   let reviewMode = "diff"; // default: only review changed lines
   let language = "en";
+  let numCommits = 1; // default: only current commit
 
-  if (triggerIndex === -1) return { reviewMode, language };
+  if (triggerIndex === -1) return { reviewMode, language, numCommits };
 
   // Get words after the trigger phrase
   const afterTrigger = lowerBody.slice(triggerIndex + TRIGGER_PHRASE.length).trim();
@@ -103,10 +105,16 @@ function parseOptions(commentBody) {
       reviewMode = "full";
     } else if (LANGUAGE_FLAGS[word]) {
       language = word;
+    } else if (/^\d+$/.test(word)) {
+      // Parse number of commits (e.g., "5" means last 5 commits)
+      const n = parseInt(word, 10);
+      if (n > 0 && n <= 50) { // Cap at 50 commits for safety
+        numCommits = n;
+      }
     }
   }
 
-  return { reviewMode, language };
+  return { reviewMode, language, numCommits };
 }
 
 module.exports.handler = async (event) => {
@@ -147,10 +155,14 @@ module.exports.handler = async (event) => {
   }
 
   // Parse options from the trigger comment
-  const { reviewMode, language } = parseOptions(comment_body);
+  const { reviewMode, language, numCommits } = parseOptions(comment_body);
   const flag = LANGUAGE_FLAGS[language] || "🇺🇸";
   const langName = LANGUAGE_NAMES[language] || "English";
-  const modeLabel = reviewMode === "full" ? "Full file review" : "Changed lines only";
+  const modeLabel = reviewMode === "full"
+    ? "Full file review"
+    : numCommits > 1
+      ? `Changed lines (last ${numCommits} commits)`
+      : "Changed lines only";
 
   // Acknowledge receipt to the commit thread with language flag
   const pending = await fetch(
@@ -192,6 +204,7 @@ module.exports.handler = async (event) => {
           comment_id,
           language,
           review_mode: reviewMode,
+          num_commits: numCommits,
         },
       }),
     }
