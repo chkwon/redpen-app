@@ -201,7 +201,7 @@ module.exports.handler = async (event) => {
           `**Mode:** ${modeLabel}\n` +
           `**Language:** ${langName}\n` +
           `**Commit:** \`${commit_sha.slice(0, 7)}\`\n\n` +
-          `_Check the Actions tab for progress._`,
+          `_[Check the Actions tab for progress.](https://github.com/${payload.repository.full_name}/actions)_`,
       }),
     }
   );
