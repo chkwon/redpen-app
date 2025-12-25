@@ -392,7 +392,19 @@
     /* Mobile Adjustments */
     @media (max-width: 600px) {
       .hero {
-        padding: 60px 20px;
+        padding: 60px 16px;
+      }
+
+      .container {
+        padding: 0 16px;
+      }
+
+      .tagline {
+        font-size: 17px;
+      }
+
+      .section-heading {
+        font-size: 26px;
       }
 
       .step {
@@ -407,6 +419,14 @@
         border-radius: 10px;
       }
 
+      .step-content h3 {
+        font-size: 18px;
+      }
+
+      .step-content p {
+        font-size: 15px;
+      }
+
       .cta-group {
         flex-direction: column;
         align-items: stretch;
@@ -416,9 +436,92 @@
         justify-content: center;
       }
 
+      /* Code blocks on mobile */
+      .code-block {
+        border-radius: 8px;
+      }
+
+      .code-header {
+        padding: 10px 12px;
+      }
+
+      .code-filename {
+        font-size: 12px;
+      }
+
+      .code-body {
+        padding: 14px 12px;
+      }
+
+      .code-body pre {
+        font-size: 11px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      /* Trigger commands on mobile */
+      .trigger {
+        padding: 10px 14px;
+        font-size: 13px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .language-options {
+        gap: 6px;
+      }
+
+      .language-options .trigger {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
       .footer-content {
         flex-direction: column;
         text-align: center;
+      }
+
+      footer {
+        padding: 32px 16px;
+        margin-top: 60px;
+      }
+
+      .footer-left {
+        font-size: 13px;
+      }
+
+      .footer-links {
+        gap: 16px;
+      }
+
+      .footer-links a {
+        font-size: 13px;
+      }
+    }
+
+    /* Extra small screens */
+    @media (max-width: 380px) {
+      .trigger {
+        font-size: 12px;
+        padding: 8px 10px;
+        gap: 6px;
+      }
+
+      .language-options .trigger {
+        font-size: 11px;
+        padding: 6px 10px;
+      }
+
+      .code-body pre {
+        font-size: 10px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .tagline {
+        font-size: 15px;
       }
     }
   </style>
