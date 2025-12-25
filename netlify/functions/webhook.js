@@ -4,7 +4,13 @@ const jsonwebtoken = require("jsonwebtoken"); // bundled via Netlify Node runtim
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_PRIVATE_KEY = process.env.GITHUB_PRIVATE_KEY; // PEM, newline-escaped
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET; // same as in App settings
-const TRIGGER_PHRASE = (process.env.TRIGGER_PHRASE || "@redpenapp review").toLowerCase();
+
+// Support multiple trigger phrases
+const TRIGGER_PHRASES = [
+  "@redpenapp review",
+  "@red-pen-app review",
+  "@red-pen-app[bot] review",
+];
 
 // Language code to flag emoji mapping
 const LANGUAGE_FLAGS = {
@@ -83,21 +89,38 @@ async function addReaction(token, repoFullName, commentId, emoji) {
   return res.ok;
 }
 
-// Parse options from trigger comment
-// Supports: "@RedPenApp review", "@RedPenApp review full", "@RedPenApp review ko",
-// "@RedPenApp review full ko", "@RedPenApp review 5" (review last 5 commits)
-function parseOptions(commentBody) {
+// Find which trigger phrase is used and return its index and length
+function findTrigger(commentBody) {
   const lowerBody = commentBody.toLowerCase();
-  const triggerIndex = lowerBody.indexOf(TRIGGER_PHRASE);
+  for (const phrase of TRIGGER_PHRASES) {
+    const index = lowerBody.indexOf(phrase);
+    if (index !== -1) {
+      return { index, length: phrase.length };
+    }
+  }
+  return null;
+}
+
+// Check if comment contains any trigger phrase
+function hasTrigger(commentBody) {
+  return findTrigger(commentBody) !== null;
+}
+
+// Parse options from trigger comment
+// Supports: "@RedPenApp review", "@red-pen-app[bot] review", "review full", "review ko",
+// "review full ko", "review 5" (review last 5 commits)
+function parseOptions(commentBody) {
+  const trigger = findTrigger(commentBody);
 
   let reviewMode = "diff"; // default: only review changed lines
   let language = "en";
   let numCommits = 1; // default: only current commit
 
-  if (triggerIndex === -1) return { reviewMode, language, numCommits };
+  if (!trigger) return { reviewMode, language, numCommits };
 
   // Get words after the trigger phrase
-  const afterTrigger = lowerBody.slice(triggerIndex + TRIGGER_PHRASE.length).trim();
+  const lowerBody = commentBody.toLowerCase();
+  const afterTrigger = lowerBody.slice(trigger.index + trigger.length).trim();
   const words = afterTrigger.split(/\s+/).filter(w => w.length > 0);
 
   for (const word of words) {
@@ -137,7 +160,7 @@ module.exports.handler = async (event) => {
     return { statusCode: 200, body: "ignored: bot comment" };
   }
 
-  if (!comment_body.toLowerCase().includes(TRIGGER_PHRASE)) {
+  if (!hasTrigger(comment_body)) {
     return { statusCode: 200, body: "ignored: trigger not found" };
   }
 
