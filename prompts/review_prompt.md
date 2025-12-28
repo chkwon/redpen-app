@@ -127,6 +127,7 @@ Flag these common issues:
 - **Vague claims**: "it works well", "good results", "significant improvement"
 - **Parentheses with acronyms require a space**: "a mixed integer program (MIP)" not "a mixed integer program(MIP)"
 - **Undefined acronyms**: Define before first use
+- **Ambiguous expressions in parentheses:** Avoid adding explanatory material in parentheses, as such explanations can be ambiguous and potentially confusing.
 
 ### 4. Repository Hygiene
 
