@@ -72,57 +72,7 @@ When creating/editing the GitHub App at https://github.com/settings/apps:
 
 ## For Users: How to Use RedPenApp
 
-### Step 1: Install the GitHub App
-Go to the GitHub App page and click "Install" on your repository.
-
-### Step 2: Add the Workflow File
-Copy `.github/workflows/redpen-review.yml` to your repository:
-
-```yaml
-name: RedPen LaTeX Review
-
-on:
-  repository_dispatch:
-    types: [redpen-review]
-  workflow_dispatch:
-
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.client_payload.commit_sha || github.sha }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: python -m pip install --upgrade pip
-
-      - name: Run OpenAI LaTeX review
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_SHA: ${{ github.event.client_payload.commit_sha || github.sha }}
-        run: |
-          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/scripts/openai_review.py
-          curl -sO https://raw.githubusercontent.com/chkwon/redpen-app/main/prompts/review_prompt.md
-          python openai_review.py
-```
-
-### Step 3: Add Repository Secret
-Add `OPENAI_API_KEY` as a repository secret (Settings → Secrets and variables → Actions).
-
-### Step 4: Trigger a Review
-Comment `@RedPenApp review` on any commit to get a review of all `.tex` files.
+Read the instructions at: https://redpen-app.netlify.app/
 
 ## Notes
 
