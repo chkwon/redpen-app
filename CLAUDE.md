@@ -29,7 +29,7 @@ User Comment → GitHub Webhook → Netlify Function → GitHub Actions → Open
 - **`scripts/openai_review.py`** - 630+ lines of Python handling file fetching, diff parsing, chunking, OpenAI calls, and result formatting
 - **`prompts/review_prompt.md`** - Detailed system prompt defining review priorities (grammar, LaTeX best practices, academic style)
 - **`.github/workflows/redpen-review.yml`** - Supports 3 triggers: `repository_dispatch`, `workflow_dispatch`, `workflow_call`
-- **`config.yml`** - Defaults: `model: gpt-5-mini`, `language: en`, `max_chars: 20000`
+- **`config.yml`** - Defaults: `model: gpt-5-mini`, `language: en`, `max_chars: 80000`
 
 ## User Trigger Syntax
 

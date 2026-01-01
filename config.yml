@@ -15,7 +15,8 @@ model: gpt-5-mini
 # Default: en
 language: en
 
-# Maximum characters to review per file
-# Larger files will be truncated. Increase for thorough reviews of long documents.
-# Default: 20000
-max_chars: 20000
+# Maximum characters to review per chunk
+# Files larger than this will be split into chunks and reviewed separately.
+# With 128K context models, you can safely use up to 100000 characters.
+# Default: 80000
+max_chars: 80000

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 API_URL = os.getenv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions")
 DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_LANGUAGE = "en"
-DEFAULT_MAX_CHARS = 20000
+DEFAULT_MAX_CHARS = 80000
 PROMPT_PATH = Path(os.getenv("REVIEW_PROMPT_PATH", "prompts/review_prompt.md"))
 CONFIG_PATH = Path(os.getenv("REDPEN_CONFIG_PATH", "config.yml"))
 
