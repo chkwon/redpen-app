@@ -66,6 +66,14 @@ where $x$ is the decision variable.
 
 - **No `\\` after the last line** in multi-line equations (`align`, `gather`, etc.)
 
+#### Manual Spacing Adjustments (WARNING)
+Discourage manual spacing adjustments like `\\[2mm]`, `\vspace{}`, `\medskip`, `\hspace{}` in the document body:
+- **Prefer preamble settings**: Encourage users to adjust spacing globally via document class options, package settings (e.g., `setspace`, `geometry`), or custom preamble definitions
+- **Equations**: Use `\\[<len>]` inside equations sparingly; prefer consistent spacing via packages like `mathtools` or redefining `\jot` for `align` environments
+- **Between paragraphs/sections**: Adjust via `\parskip`, `\setlength`, or document class options rather than manual `\vspace`
+- Mark as 🟡 **warning** - these are maintainability issues, not errors
+- Only suggest `\vspace` or `\medskip` when absolutely necessary for one-off adjustments
+
 #### Quotation Marks
 ```latex
 % WRONG - straight quotes
