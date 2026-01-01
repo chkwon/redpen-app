@@ -166,7 +166,7 @@ Return a JSON object with this structure:
   - `suggestion`: Minor improvements, alternatives (nice to fix)
 - **category**: One of `grammar`, `spelling`, `latex`, `style`
 - **issue**: Be specific. "Incorrect article" not "grammar issue"
-- **suggestion**: Provide the EXACT corrected text they can copy-paste
+- **suggestion**: Provide the corrected text, with the changed words highlighted for easy reading.
 - **explanation**: Help them learn. Explain the rule briefly.
 
 ### Markdown in Fields
