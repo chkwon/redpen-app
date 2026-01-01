@@ -209,10 +209,12 @@ def check_gitignore_for_latex(gitignore_content: Optional[str]) -> Dict[str, Any
     return result
 
 
-def format_gitignore_review(gitignore_check: Dict[str, Any], tracked_pdfs: List[str] = None) -> str:
+def format_gitignore_review(gitignore_check: Dict[str, Any], tracked_pdfs: List[str] = None, tex_files: List[str] = None) -> str:
     """Format the .gitignore check results as a markdown section."""
     if tracked_pdfs is None:
         tracked_pdfs = []
+    if tex_files is None:
+        tex_files = []
 
     lines = ["### 📋 Repository Hygiene: `.gitignore` Check\n"]
 
@@ -238,8 +240,11 @@ def format_gitignore_review(gitignore_check: Dict[str, Any], tracked_pdfs: List[
     else:
         issues = []
 
-        if not gitignore_check["has_pdf"]:
-            issues.append("- ⚠️ **PDF files are not ignored.** Add `*.pdf` to prevent tracking compiled output.")
+        if not gitignore_check["has_pdf"] and tex_files:
+            # Suggest specific PDF names based on actual tex files
+            suggested_pdfs = [t.replace(".tex", ".pdf") for t in tex_files[:3]]
+            pdf_examples = ", ".join(f"`{p}`" for p in suggested_pdfs)
+            issues.append(f"- 💡 **Consider ignoring compiled PDF output.** Based on your `.tex` files, you may want to add {pdf_examples} to `.gitignore` to avoid tracking compiled output. Note: PDF figures/graphics should remain tracked.")
 
         if not gitignore_check["has_latex_patterns"]:
             issues.append("- ⚠️ **LaTeX auxiliary files may not be properly ignored.** Consider adding patterns for `.aux`, `.log`, `.out`, `.bbl`, `.blg`, `.synctex.gz` files.")
@@ -256,33 +261,44 @@ def format_gitignore_review(gitignore_check: Dict[str, Any], tracked_pdfs: List[
         else:
             lines.append("✅ `.gitignore` file exists and includes proper LaTeX patterns.\n")
 
-    # Check for tracked PDF files
+    # Check for tracked PDF files that might be compiled output
+    # Filter to find PDFs that are likely compiled output (same name as .tex files or common output names)
     if tracked_pdfs:
-        lines.append("\n---\n")
-        lines.append("⚠️ **PDF files are tracked in this repository!**\n")
-        lines.append("Compiled PDF output files should typically not be tracked in git. Found:\n")
-        for pdf in tracked_pdfs[:10]:  # Limit to first 10
-            lines.append(f"- `{pdf}`")
-        if len(tracked_pdfs) > 10:
-            lines.append(f"- ... and {len(tracked_pdfs) - 10} more")
+        # Common patterns for compiled output PDFs
+        output_patterns = ["main.pdf", "paper.pdf", "thesis.pdf", "dissertation.pdf", "manuscript.pdf", "article.pdf", "report.pdf", "document.pdf"]
+        # Normalize tex file paths for comparison
+        tex_basenames = [t.lower().replace(".tex", ".pdf") for t in tex_files]
+        potential_output_pdfs = [
+            pdf for pdf in tracked_pdfs
+            if any(pdf.lower().endswith(p) for p in output_patterns)
+            or pdf.lower() in tex_basenames  # Has matching .tex file
+        ]
 
-        lines.append("\n**To remove tracked PDF files and update `.gitignore`:**\n")
-        lines.append("```bash")
-        lines.append("# 1. Add *.pdf to .gitignore (if not already present)")
-        lines.append("echo '*.pdf' >> .gitignore")
-        lines.append("")
-        lines.append("# 2. Remove PDF files from git tracking (keeps local files)")
-        for pdf in tracked_pdfs[:5]:
-            lines.append(f"git rm --cached \"{pdf}\"")
-        if len(tracked_pdfs) > 5:
-            lines.append("# ... repeat for other PDF files, or use:")
-            lines.append("git rm --cached \"*.pdf\"")
-        lines.append("")
-        lines.append("# 3. Commit the changes")
-        lines.append("git add .gitignore")
-        lines.append("git commit -m \"Remove tracked PDF files and update .gitignore\"")
-        lines.append("```")
-        lines.append("\n> **Note:** `git rm --cached` removes files from git tracking but keeps them in your local directory.")
+        # Only show warning if we found potential output PDFs, otherwise just informational
+        if potential_output_pdfs:
+            lines.append("\n---\n")
+            lines.append("💡 **Possible compiled PDF output detected:**\n")
+            lines.append("The following PDF files may be compiled LaTeX output rather than figure graphics:\n")
+            for pdf in potential_output_pdfs[:5]:
+                lines.append(f"- `{pdf}`")
+            if len(potential_output_pdfs) > 5:
+                lines.append(f"- ... and {len(potential_output_pdfs) - 5} more")
+
+            # Use the first detected output PDF for the example commands
+            example_pdf = potential_output_pdfs[0]
+            lines.append("\n**If these are compiled output files, consider removing them from git:**\n")
+            lines.append("```bash")
+            lines.append("# 1. Add the output PDF to .gitignore")
+            lines.append(f"echo '{example_pdf}' >> .gitignore")
+            lines.append("")
+            lines.append("# 2. Remove from git tracking (keeps local file)")
+            lines.append(f"git rm --cached \"{example_pdf}\"")
+            lines.append("")
+            lines.append("# 3. Commit the changes")
+            lines.append("git add .gitignore")
+            lines.append("git commit -m \"Stop tracking compiled PDF output\"")
+            lines.append("```")
+            lines.append("\n> **Note:** PDF figures/graphics should remain tracked. Only remove compiled output PDFs.")
 
     return "\n".join(lines)
 
@@ -792,7 +808,7 @@ def main() -> int:
         parts.append(format_review_as_markdown(path, review_json, file_content))
 
     # Add .gitignore check results
-    parts.append(format_gitignore_review(gitignore_check, tracked_pdfs))
+    parts.append(format_gitignore_review(gitignore_check, tracked_pdfs, tex_paths))
 
     comment_body = "\n---\n".join(parts)
     log(f"Posting review comment ({len(comment_body)} chars)...")
