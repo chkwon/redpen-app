@@ -155,7 +155,7 @@ Return a JSON object with this structure:
       "category": "grammar",
       "original": "We formulate an mixed integer program",
       "issue": "Incorrect article before consonant sound",
-      "suggestion": "\"an mixed integer\" → \"a mixed-integer\"\n\nFull: \"We formulate a mixed-integer program\"",
+      "suggestion": "\"an mixed integer\" → \"a mixed-integer\"\n\nFull: `We formulate a mixed-integer program`",
       "explanation": "Use 'a' before consonant sounds. Also, 'mixed-integer' is typically hyphenated as a compound adjective."
     }
   ]
@@ -172,7 +172,7 @@ Return a JSON object with this structure:
   - `suggestion`: Minor improvements, alternatives (nice to fix)
 - **category**: One of `grammar`, `spelling`, `latex`, `style`
 - **issue**: Be specific. "Incorrect article" not "grammar issue"
-- **suggestion**: Start with a simple before → after format showing just the changed phrase, then after an empty line, provide the full corrected text. Example: `"an mixed integer" → "a mixed-integer"\n\nFull: "We formulate a mixed-integer program."`
+- **suggestion**: Start with a simple before → after format showing just the changed phrase, then after an empty line, provide the full corrected LaTeX code in backticks. Example: `"an mixed integer" → "a mixed-integer"\n\nFull: \`We formulate a mixed-integer program.\``
 - **explanation**: Help them learn. Explain the rule briefly.
 
 ### Markdown in Fields
