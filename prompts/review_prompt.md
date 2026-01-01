@@ -131,9 +131,7 @@ Flag these common issues:
 
 ### 4. Repository Hygiene
 
-If you notice:
-- Missing `.gitignore` for LaTeX projects
-- PDF files that appear to be tracked (suggest deleting and adding to `.gitignore`)
+**Note:** The `.gitignore` check is performed automatically by RedPen and reported separately. You do not need to comment on `.gitignore` or tracked PDF files in your review - focus on the LaTeX content.
 
 ## Output Format
 

@@ -83,9 +83,12 @@ Supported languages: `en`, `ko`, `zh`, `ja`, `vi`
 6. **Workflow** checks out code, runs Python script
 7. **Python script**:
    - Fetches `.tex` files and diffs via GitHub API
+   - Checks `.gitignore` for proper LaTeX patterns
+   - Checks for tracked PDF files in the repository
    - Chunks large files (>20,000 chars)
    - Calls OpenAI for each chunk with system prompt
    - Formats results as markdown with line numbers
+   - Appends `.gitignore` check results with actionable recommendations
    - Posts review as commit comment
 8. **Adds reactions** (👀 received, 🚀 success, 😕 failure)
 
@@ -95,6 +98,20 @@ The AI checks for:
 - **Grammar**: Subject-verb agreement, articles, spelling, tense consistency
 - **LaTeX**: Paragraph spacing, equation formatting, cross-references, quotation marks, dashes
 - **Academic Style**: Informal language, weak hedging, vague claims, undefined acronyms
+
+## Repository Hygiene Check
+
+Each review automatically includes a `.gitignore` check that:
+- Verifies `.gitignore` exists
+- Checks for proper LaTeX patterns (`*.aux`, `*.log`, `*.out`, `*.bbl`, `*.blg`, `*.synctex.gz`)
+- Checks if `*.pdf` is ignored
+- Lists any tracked PDF files in the repository
+- Provides step-by-step instructions to remove tracked PDFs and update `.gitignore`
+
+The check reports:
+- ✅ If `.gitignore` is properly configured
+- ⚠️ If `.gitignore` is missing or incomplete
+- ⚠️ If PDF files are tracked (with `git rm --cached` removal instructions)
 
 ## Build System
 

@@ -134,6 +134,159 @@ def list_tex_files(repo: str, ref: str, token: str) -> List[str]:
     ]
 
 
+def fetch_gitignore(repo: str, ref: str, token: str) -> Optional[str]:
+    """Fetch .gitignore content from the repository if it exists."""
+    try:
+        return fetch_file(repo, ".gitignore", ref, token)
+    except Exception:
+        return None
+
+
+def list_tracked_pdf_files(repo: str, ref: str, token: str) -> List[str]:
+    """List all PDF files tracked in the repository."""
+    url = f"https://api.github.com/repos/{repo}/git/trees/{ref}?recursive=1"
+    data = gh_request(url, token)
+    tree = data.get("tree", [])
+    return [
+        entry["path"]
+        for entry in tree
+        if entry.get("type") == "blob" and entry.get("path", "").lower().endswith(".pdf")
+    ]
+
+
+def check_gitignore_for_latex(gitignore_content: Optional[str]) -> Dict[str, Any]:
+    """Check if .gitignore exists and contains proper LaTeX patterns.
+
+    Returns a dict with:
+    - exists: bool - whether .gitignore exists
+    - has_pdf: bool - whether *.pdf or similar is ignored
+    - has_aux: bool - whether common LaTeX auxiliary files are ignored
+    - has_latex_patterns: bool - whether it has general LaTeX patterns
+    - missing_patterns: list - suggested patterns that are missing
+    """
+    result = {
+        "exists": gitignore_content is not None,
+        "has_pdf": False,
+        "has_aux": False,
+        "has_latex_patterns": False,
+        "missing_patterns": [],
+    }
+
+    if not gitignore_content:
+        result["missing_patterns"] = ["*.pdf", "*.aux", "*.log", "*.out", "*.bbl", "*.blg", "*.synctex.gz"]
+        return result
+
+    lines = [line.strip().lower() for line in gitignore_content.split("\n") if line.strip() and not line.strip().startswith("#")]
+
+    # Check for PDF patterns
+    pdf_patterns = ["*.pdf", "**/*.pdf", ".pdf", "pdf"]
+    result["has_pdf"] = any(p in lines or any(p in line for line in lines) for p in pdf_patterns)
+
+    # Check for common LaTeX auxiliary file patterns
+    aux_patterns = ["*.aux", "*.log", "*.out", "*.toc", "*.lof", "*.lot"]
+    found_aux = sum(1 for p in aux_patterns if any(p in line for line in lines))
+    result["has_aux"] = found_aux >= 2  # At least 2 auxiliary patterns
+
+    # Check for general LaTeX patterns (might use .gitignore templates)
+    latex_keywords = ["latex", "tex", "*.bbl", "*.blg", "*.synctex", "*.fls", "*.fdb_latexmk"]
+    result["has_latex_patterns"] = any(any(kw in line for kw in latex_keywords) for line in lines) or result["has_aux"]
+
+    # Suggest missing important patterns
+    important_patterns = {
+        "*.pdf": ["*.pdf", "**/*.pdf"],
+        "*.aux": ["*.aux"],
+        "*.log": ["*.log"],
+        "*.out": ["*.out"],
+        "*.bbl": ["*.bbl"],
+        "*.blg": ["*.blg"],
+        "*.synctex.gz": ["*.synctex.gz", "*.synctex"],
+    }
+
+    for pattern_name, variants in important_patterns.items():
+        if not any(any(v in line for v in variants) for line in lines):
+            result["missing_patterns"].append(pattern_name)
+
+    return result
+
+
+def format_gitignore_review(gitignore_check: Dict[str, Any], tracked_pdfs: List[str] = None) -> str:
+    """Format the .gitignore check results as a markdown section."""
+    if tracked_pdfs is None:
+        tracked_pdfs = []
+
+    lines = ["### 📋 Repository Hygiene: `.gitignore` Check\n"]
+
+    if not gitignore_check["exists"]:
+        lines.append("⚠️ **No `.gitignore` file found!**\n")
+        lines.append("LaTeX projects generate many auxiliary files that should not be tracked in git.\n")
+        lines.append("\n**Recommended:** Create a `.gitignore` file with these patterns:\n")
+        lines.append("```")
+        lines.append("# LaTeX auxiliary files")
+        lines.append("*.aux")
+        lines.append("*.log")
+        lines.append("*.out")
+        lines.append("*.toc")
+        lines.append("*.lof")
+        lines.append("*.lot")
+        lines.append("*.bbl")
+        lines.append("*.blg")
+        lines.append("*.synctex.gz")
+        lines.append("")
+        lines.append("# Output files")
+        lines.append("*.pdf")
+        lines.append("```")
+    else:
+        issues = []
+
+        if not gitignore_check["has_pdf"]:
+            issues.append("- ⚠️ **PDF files are not ignored.** Add `*.pdf` to prevent tracking compiled output.")
+
+        if not gitignore_check["has_latex_patterns"]:
+            issues.append("- ⚠️ **LaTeX auxiliary files may not be properly ignored.** Consider adding patterns for `.aux`, `.log`, `.out`, `.bbl`, `.blg`, `.synctex.gz` files.")
+
+        if issues:
+            lines.append("The `.gitignore` file exists but may be missing some important patterns:\n")
+            lines.extend(issues)
+            if gitignore_check["missing_patterns"]:
+                lines.append("\n**Suggested additions:**")
+                lines.append("```")
+                for pattern in gitignore_check["missing_patterns"]:
+                    lines.append(pattern)
+                lines.append("```")
+        else:
+            lines.append("✅ `.gitignore` file exists and includes proper LaTeX patterns.\n")
+
+    # Check for tracked PDF files
+    if tracked_pdfs:
+        lines.append("\n---\n")
+        lines.append("⚠️ **PDF files are tracked in this repository!**\n")
+        lines.append("Compiled PDF output files should typically not be tracked in git. Found:\n")
+        for pdf in tracked_pdfs[:10]:  # Limit to first 10
+            lines.append(f"- `{pdf}`")
+        if len(tracked_pdfs) > 10:
+            lines.append(f"- ... and {len(tracked_pdfs) - 10} more")
+
+        lines.append("\n**To remove tracked PDF files and update `.gitignore`:**\n")
+        lines.append("```bash")
+        lines.append("# 1. Add *.pdf to .gitignore (if not already present)")
+        lines.append("echo '*.pdf' >> .gitignore")
+        lines.append("")
+        lines.append("# 2. Remove PDF files from git tracking (keeps local files)")
+        for pdf in tracked_pdfs[:5]:
+            lines.append(f"git rm --cached \"{pdf}\"")
+        if len(tracked_pdfs) > 5:
+            lines.append("# ... repeat for other PDF files, or use:")
+            lines.append("git rm --cached \"*.pdf\"")
+        lines.append("")
+        lines.append("# 3. Commit the changes")
+        lines.append("git add .gitignore")
+        lines.append("git commit -m \"Remove tracked PDF files and update .gitignore\"")
+        lines.append("```")
+        lines.append("\n> **Note:** `git rm --cached` removes files from git tracking but keeps them in your local directory.")
+
+    return "\n".join(lines)
+
+
 def fetch_commit_diff(repo: str, sha: str, token: str) -> Dict[str, List[tuple[int, int]]]:
     """Fetch the diff for a commit and return changed line ranges per file.
 
@@ -526,6 +679,23 @@ def main() -> int:
 
     log(f"Found {len(tex_paths)} .tex file(s) to review")
 
+    # Check .gitignore for proper LaTeX patterns
+    log("Checking .gitignore...")
+    gitignore_content = fetch_gitignore(repo, commit_sha, github_token)
+    gitignore_check = check_gitignore_for_latex(gitignore_content)
+    if gitignore_check["exists"]:
+        log(f".gitignore found: has_pdf={gitignore_check['has_pdf']}, has_latex_patterns={gitignore_check['has_latex_patterns']}")
+    else:
+        log(".gitignore not found")
+
+    # Check for tracked PDF files
+    log("Checking for tracked PDF files...")
+    tracked_pdfs = list_tracked_pdf_files(repo, commit_sha, github_token)
+    if tracked_pdfs:
+        log(f"Found {len(tracked_pdfs)} tracked PDF file(s)")
+    else:
+        log("No tracked PDF files found")
+
     if not tex_paths:
         log("No .tex files found, posting comment and exiting")
         post_commit_comment(
@@ -620,6 +790,9 @@ def main() -> int:
     parts = [header]
     for path, review_json, file_content in results:
         parts.append(format_review_as_markdown(path, review_json, file_content))
+
+    # Add .gitignore check results
+    parts.append(format_gitignore_review(gitignore_check, tracked_pdfs))
 
     comment_body = "\n---\n".join(parts)
     log(f"Posting review comment ({len(comment_body)} chars)...")
